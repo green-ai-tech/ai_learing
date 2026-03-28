@@ -1,0 +1,72 @@
+# IDE 缓存
+.idea/
+.vscode/
+
+# Jupyter 缓存
+.ipynb_checkpoints/
+.virtual_documents/
+
+# 压缩包与临时文件
+*.rar
+*.zip
+*.tmp
+
+# 虚拟环境
+venv/
+.venv/
+
+# 本地model 文件
+models/
+
+#mnist
+mnist/
+
+#各种测试文件
+test.*
+
+#claude
+.claude/
+.claude
+
+# Python 缓存（彻底忽略所有 __pycache__ 和 .pyc）
+__pycache__/
+*.py[cod]
+*$py.class
+
+#bat
+*.bat
+
+# 忽略所有视频
+*.mp4
+*.mov
+*.avi
+*.flv
+*.mkv
+*.wmv
+*.webm
+*.m4v
+*.mpg
+*.mpeg
+*.ts
+
+
+# 忽略大文件
+*.zip
+*.rar
+*.7z
+*.tar
+*.gz
+
+# 忽略数据集、模型
+*.bin
+*.pth
+*.pkl
+*.h5
+*.ckpt
+*.onnx
+*.data
+*.csv
+*.parquet
+
+*.log
+*.xmind

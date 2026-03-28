@@ -1,0 +1,7 @@
+当前代码环境：
+torch>=2.0
+transformers>=4.30
+opencv-python
+numpy
+pandas
+matplotlib
