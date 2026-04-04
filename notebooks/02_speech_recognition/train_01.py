@@ -24,19 +24,19 @@ config = ASTConfig(
     hidden_size=768,
     num_hidden_layers=12,
     num_attention_heads=12,
-    intermediate_size=3072,   # 决定了模型的大小与参数的个数   
-    hidden_act="gelu",        # 正是因为激活函数的非线性，整个网络最后才是非线性（分类能力高）。
+    intermediate_size=3072,             # 决定了模型的大小与参数的个数   
+    hidden_act="gelu",                  # 正是因为激活函数的非线性，整个网络最后才是非线性（分类能力高）。
     hidden_dropout_prob=0.0,
-    attention_probs_dropout_prob=0.0,  # 特征的激活方式
-    initializer_range=0.02,       # 权重的初始值的大小。（数据标准化的原理一样）
-    layer_norm_eps=1e-12,         # 标准化的时候，除数容易为0，防止为0，一般会添加epsilon  （x-mean）/std
+    attention_probs_dropout_prob=0.0,   # 特征的激活方式
+    initializer_range=0.02,             # 权重的初始值的大小。（数据标准化的原理一样）
+    layer_norm_eps=1e-12,               # 标准化的时候，除数容易为0，防止为0，一般会添加epsilon  （x-mean）/std
     patch_size=16,          
     qkv_bias=True,
-    frequency_stride=10,     # 音频特征处理
+    frequency_stride=10,                # 音频特征处理
     time_stride=10,
-    max_length=128,      # 必须与特征处理器保持一致
+    max_length=128,                     # 必须与特征处理器保持一致
     num_mel_bins=128,
-    num_labels=len(labels),  # 与数据集有关- 分类的类别数量
+    num_labels=len(labels),             # 与数据集有关- 分类的类别数量
     id2label=id2label,         
     label2id=label2id,
 )
@@ -142,4 +142,3 @@ trainer = Trainer(
 )
 
 trainer.train() # 开始训练
-
