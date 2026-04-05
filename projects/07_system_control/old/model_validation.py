@@ -204,10 +204,6 @@ def record_audio(duration=2, sample_rate=16000):
     
     返回:
         waveform: 归一化后的音频张量，形状为 (1, 采样点数)
-    
-    依赖:
-        需要安装 pyaudio: pip install pyaudio
-        macOS 可能需要: brew install portaudio
     """
     try:
         import pyaudio
@@ -300,7 +296,7 @@ if __name__ == "__main__":
     # 默认执行实时测试
     realtime_test()
 
-    # 如需测试单个文件，取消注释以下代码：
+    # 测试单个文件，以下代码：
     # result = predict_single_file("测试音频.wav")
     # print(f"预测结果: {result}")
     
