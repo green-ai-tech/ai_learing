@@ -1,0 +1,5 @@
+# YOLO 模型微调
+torch>=2.0
+torchvision>=0.15
+transformers>=4.30
+numpy>=1.24

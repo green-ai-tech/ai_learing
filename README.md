@@ -36,25 +36,31 @@
 ```
 AI_LEARNING/
 ├── assets/                                                     # 静态资源文件
+│   ├── audio/                                                  # 音频文件
 │   ├── images/                                                 # 文章配图、效果图（提交 GitHub）
-│   └── videos/                                                 # 本地视频文件（不上传 GitHub）
+│   └── video/                                                  # 本地视频文件（不上传 GitHub）
 ├── docs/                                                       # 文档笔记(周更)
-│   └── week01.md                
+│   └── week01.md
 ├── notebooks/                                                  # Jupyter 代码与博文主目录
-│   ├── 00_pre/                                                 # 前置基础知识
-│   │   ├── 00_python_tutorial/                  
-│   │   ├── 01_image_processing/ 
-│   │   ├── 02_transformers/     
-│   │   ├── 03_visualization/    
-│   │   └── 04_PyTorch_basics/   
-│   └── 01_machine_vision/                                     # 计算机视觉实战模块
-├── projects/                                                  # 实战项目代码
-│   ├── 03_handwritten_character_recognition_lenet5/           # LeNet5 手写数字识别
-│   ├── 04_fine_tuning_yolo_model/                             # YOLO 模型微调
-│   └── 05_qt_base/                                            # Qt 界面入门
-├── README.md                                                  # 项目说明文档
-├── .gitignore                                                 # Git 忽略文件配置
-└── requirements.txt                                           # Python 依赖清单
+│   ├── 00_pre_essential_knowledge/                             # 前置基础知识
+│   │   └── 00_python_tutorial/                                 # Python 教程
+│   ├── 01_machine_vision/                                      # 计算机视觉实战模块
+│   ├── 02_speech_recognition/                                  # 语音识别模块
+│   ├── 03_encoder_decoder/                                     # 编码器解码器模块
+│   └── 99_chapter_review/                                      # 章节复习
+├── projects/                                                   # 实战项目代码
+│   ├── 03_handwritten_character_recognition_lenet5/            # LeNet5 手写数字/字符识别
+│   ├── 04_fine_tuning_yolo_model/                              # YOLO 模型微调
+│   ├── 05_qt_base/                                             # Qt 界面入门
+│   ├── 06_speech_data_collector/                               # 语音数据采集工具
+│   └── 07_system_control/                                      # 语音控制系统
+│       ├── config/                                             # 配置模块
+│       ├── models/                                             # 语音模型
+│       ├── services/                                           # 服务层（录音、音频处理、动作执行）
+│       └── ui/                                                 # 主界面
+├── README.md                                                   # 项目说明文档
+├── .gitignore                                                  # Git 忽略文件配置
+└── requirements.txt                                            # Python 依赖清单
 ```
 
 ## 📮 联系我

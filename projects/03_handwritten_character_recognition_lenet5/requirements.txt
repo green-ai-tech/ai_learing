@@ -1,0 +1,4 @@
+# LeNet5 手写数字识别
+torch>=2.0
+torchvision>=0.15
+numpy>=1.24

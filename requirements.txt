@@ -1,7 +1,23 @@
-当前代码环境：
+# ============================================================
+# AI Learning - 公共依赖
+# 适用于所有 Notebook 和通用脚本
+# ============================================================
+
+# 深度学习核心
 torch>=2.0
+torchvision>=0.15
+torchaudio>=2.0
+
+# 计算机视觉
+opencv-python>=4.8
+
+# 数据处理与可视化
+numpy>=1.24
+pandas>=2.0
+matplotlib>=3.7
+
+# 大模型 / NLP
 transformers>=4.30
-opencv-python
-numpy
-pandas
-matplotlib
+
+# 进度条
+tqdm>=4.65
