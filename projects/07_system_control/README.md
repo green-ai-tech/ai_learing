@@ -67,7 +67,7 @@
 ### 1. 安装依赖
 
 ```bash
-cd /Users/logicye/Code/ai_learning
+cd /Volumes/AI/ai_learning
 source venv/bin/activate
 ```
 

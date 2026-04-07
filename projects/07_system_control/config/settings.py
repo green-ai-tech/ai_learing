@@ -21,7 +21,7 @@ class AppConfig:
     
     # ==================== 模型配置 ====================
     # 模型保存路径（训练好的语音识别模型）
-    MODEL_PATH = "/Users/logicye/Code/my_trained_models/model_speech_control_transformer"
+    MODEL_PATH = "/Volumes/AI/models/my_trained/model_speech_control_transformer"
     
     # 音频采样率（Hz）- 与训练时保持一致
     SAMPLE_RATE = 16000
@@ -76,4 +76,4 @@ class AppConfig:
     MOUSE_ANIMATION_DURATION    = 1.0    # 总持续时间（秒）
     
     # 截屏保存目录
-    SCREENSHOT_DIR = "output_screen_capture"
+    SCREENSHOT_DIR = "projects/07_system_control/output_screen_capture"

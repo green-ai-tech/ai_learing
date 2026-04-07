@@ -23,7 +23,7 @@ import numpy as np
 #   - config.json: 模型配置
 #   - model.safetensors: 模型权重（安全格式）
 #   - label_mapping.json: 标签映射
-MODEL_PATH = "/Users/logicye/Code/my_trained_models/model_speech_control_transformer"
+MODEL_PATH = "/Volumes/AI/models/my_trained/model_speech_control_transformer"
 DEVICE = torch.device("cpu")  # 使用 CPU 进行推理
 
 # ==================== 定义模型类（与训练时完全相同）====================

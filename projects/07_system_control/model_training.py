@@ -31,11 +31,12 @@ from typing import Optional, Tuple, Union
 #     │   └── ...
 #     └── 打开计算器/
 #         └── ...
-DATASET_PATH = "/Users/logicye/Code/my_Datasets/系统控制"
+DATASET_PATH = "/Volumes/AI/my_Datasets/系统控制"
 
 # 模型保存路径：训练完成后模型及相关文件保存到此目录
 # 包含：config.json（配置）、pytorch_model.bin（权重）、label_mapping.json（标签映射）
-MODEL_SAVE_PATH = "/Users/logicye/Code/my_trained_models/model_speech_control_transformer"
+MODEL_SAVE_PATH = "/Volumes/AI/models/my_trained/model_speech_control_transformer"
+
 os.makedirs(MODEL_SAVE_PATH, exist_ok=True)  # 确保目录存在
 
 # ==================== 双日志输出系统 ====================

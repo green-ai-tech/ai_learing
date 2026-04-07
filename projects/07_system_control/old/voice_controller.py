@@ -457,8 +457,8 @@ class MainWindow(QMainWindow):
         info_label.setStyleSheet("color: #000000; background-color: #A0A0A0;")
         layout.addWidget(info_label)
 
-        # 初始化录音器 
-        model_path = "/Users/logicye/Code/my_trained_models/model_speech_control_transformer"
+        # 初始化录音器
+        model_path = "/Volumes/AI/models/my_trained/model_speech_control_transformer"
         self.recorder = AudioRecorder(model_path)
         self.recorder.result_signal.connect(self.on_result)
         self.recorder.status_signal.connect(self.on_status)

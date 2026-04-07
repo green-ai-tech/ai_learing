@@ -135,7 +135,7 @@ class AppConfig:
 ### 启动应用
 
 ```bash
-cd /Users/logicye/Code/ai_learning
+cd /Volumes/AI/ai_learning
 source venv/bin/activate
 cd projects/07_system_control
 python run.py
