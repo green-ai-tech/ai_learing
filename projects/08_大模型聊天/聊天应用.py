@@ -42,7 +42,6 @@ if prompt:
 
     #显示输出
     st.markdown(f"<p style='text-align: left; color: blue;'>{output.content}</p>", unsafe_allow_html=True)
-
        
 else:
     st.write("请输入问题，点击发送按钮")
