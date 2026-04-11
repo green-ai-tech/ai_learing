@@ -39,14 +39,19 @@ class PickleFileOprator:
 #op = PickleFileOprator(None,"/notebooks/03_encoder_decoder/ds/dataset/chars")
 
 
-# 获取当前脚本所在目录的父目录（项目根目录）
+# 获取当前脚本所在目录（项目根目录）
 import os
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 
-DATASET_PATH = os.path.join(PROJECT_ROOT, "ds/dataset")
-TRAIN_PATH   = os.path.join(DATASET_PATH, "train.csv")
-TEST_PATH    = os.path.join(DATASET_PATH, "test.csv")
+# 数据目录
+DATA_PATH    = os.path.join(PROJECT_ROOT, "data")
+TRAIN_PATH   = os.path.join(DATA_PATH, "train.csv")
+TEST_PATH    = os.path.join(DATA_PATH, "test.csv")
+VOCAB_PATH   = os.path.join(PROJECT_ROOT, "vocab")
 NUM_WORDS    = 6000                # 处理词的多少，可根据情况而定
+
+# 自动创建目录
+os.makedirs(VOCAB_PATH, exist_ok=True)
 
 
 """
@@ -88,8 +93,8 @@ class FileProcessing:
 
         label_list,top_n_chars = self._read_train_file()
 
-        PickleFileOprator(data=label_list,file_path=os.path.join(PROJECT_ROOT,"labels.pk")).save()
-        PickleFileOprator(data=top_n_chars,file_path=os.path.join(PROJECT_ROOT,"chars.pk")).save()
+        PickleFileOprator(data=label_list,file_path=os.path.join(VOCAB_PATH,"labels.pk")).save()
+        PickleFileOprator(data=top_n_chars,file_path=os.path.join(VOCAB_PATH,"chars.pk")).save()
        
 
 # processor = FileProcessing(NUM_WORDS)
@@ -111,8 +116,8 @@ class FileProcessing:
 """
 
 def load_file_file():
-    labels = PickleFileOprator(file_path=os.path.join(PROJECT_ROOT,"labels.pk")).read()
-    chars  = PickleFileOprator(file_path=os.path.join(PROJECT_ROOT,"chars.pk")).read()
+    labels = PickleFileOprator(file_path=os.path.join(VOCAB_PATH,"labels.pk")).read()
+    chars  = PickleFileOprator(file_path=os.path.join(VOCAB_PATH,"chars.pk")).read()
 
     #编号
     label_dict = dict(zip(labels,range(len(labels))))
@@ -211,7 +216,7 @@ from gensim.models import KeyedVectors
 #读取词袋
 label_dict, char_dict = load_file_file()
 em_model = KeyedVectors.load_word2vec_format(
-    os.path.join(DATASET_PATH, "sgns.wiki.char.bz2"),
+    os.path.join(DATA_PATH, "sgns.wiki.char.bz2"),
     binary=False,
     encoding="utf-8",
     unicode_errors="ignore"
@@ -237,49 +242,261 @@ for char ,index in char_dict.items():
 
 
 # 4. transformer模型算法实现
+import torch
 import torch.nn as nn
-class TransformerForClassfication(nn.Module):
-    def __init__(self,
-                  nhead = 4,
-                  num_layers =2,
-                  dim_feedforward = 2048,
-                  dropout = 0.1,
-                  activation ="relu",
-                  classfier_dropout=0.1
-                  ):
-        super(TransformerForClassfication,self).__init__()
+import math
 
-        d_model = EMBEDDING_SIZE
+EMBEDDING_SIZE = 300  # 每个词的特征向量的长度
 
-        assert d_model %nhead == 0"nhead必须真出d_model"
-        # 1. 词嵌入
-        self.emb = nn.Embedding.from_pretrained(pretraind_vector,freeze=False,padding_idx=0)
 
-        # 2. 位置编码
+# 位置编码类（03_new.py 中缺失的）
+class PositionalEncoding(nn.Module):
+    """位置编码器：为序列添加位置信息"""
+    def __init__(self, d_model, max_len=5000, dropout=0.1):
+        super(PositionalEncoding, self).__init__()
+        self.dropout = nn.Dropout(p=dropout)
         
-        # 3. 编码器（核心是编码单元）
+        # 创建位置编码矩阵
+        pe = torch.zeros(max_len, d_model)
+        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, d_model, 2).float() * 
+                            (-math.log(10000.0) / d_model))
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        pe = pe.unsqueeze(0)  # (1, max_len, d_model)
+        self.register_buffer('pe', pe)
+    
+    def forward(self, x):
+        # x: (batch, seq_len, d_model)
+        x = x + self.pe[:, :x.size(1), :]
+        return self.dropout(x)
+
+
+class TransformerForClassification(nn.Module):
+    def __init__(
+        self, 
+        num_classes,            # 类别数量改为参数
+        nhead=4,                # 注意力头:理论上越多效果越好
+        num_layers=2,           # 特征抽取层
+        dim_feedforward=2048,   # 网络维度
+        dropout=0.1,            
+        activation="relu"
+    ):
+        super(TransformerForClassification, self).__init__()
+        self.d_model = EMBEDDING_SIZE
+        vocab_size = NUM_WORDS + 4  # 与 pretraind_vector 保持一致 (+4: PAD, UNK, START, 额外预留)
+        
+        # nhead与d_model是整除关系
+        assert self.d_model % nhead == 0, "nhead必须整除d_model"
+        
+        # 定义层
+        # 1. 词嵌入（修复变量名：pretrained_vector -> pretraind_vector）
+        self.emb = nn.Embedding.from_pretrained(
+            pretraind_vector,     # ✅ 修复拼写错误
+            freeze=False, 
+            padding_idx=0
+        )
+        
+        # 2. 位置编码
+        self.pos_encoder = PositionalEncoding(
+            d_model=self.d_model,
+            dropout=dropout
+        )
+        
+        # 3. 编码器(核心是编码单元)
+        # 编码单元
         encoder_layer = nn.TransformerEncoderLayer(
-            d_model=d_model,
+            d_model=self.d_model,
             nhead=nhead,
             dim_feedforward=dim_feedforward,
             activation=activation,
-            batch_first=True,
+            batch_first=True,  # 第一个维度就是批次数
             dropout=dropout
         )
         self.transformer_encoder = nn.TransformerEncoder(
             encoder_layer,
+            num_layers
+        )    
+        
+        # 4. 分类器（修复硬编码 + 添加池化）
+        self.pooling = nn.AdaptiveAvgPool1d(1)  # 平均池化：(batch, d_model, seq_len) -> (batch, d_model, 1)
+        self.classifier = nn.Sequential(
+            nn.Dropout(dropout),
+            nn.Linear(self.d_model, num_classes)  # num_classes 改为参数传入
         )
 
-        # 4. 分类器
-        self.classifier = nn.Linear(？,5)
+    def forward(self, x):
+        # x: (batch, seq_len)
+        
+        # 词嵌入
+        x = self.emb(x) * math.sqrt(self.d_model)   # (batch, seq_len, d_model) - 防止梯度消失
+        
+        # 位置编码
+        x = self.pos_encoder(x)                     # (batch, seq_len, d_model)
+        
+        # 编码器
+        x = self.transformer_encoder(x)             # (batch, seq_len, d_model)
+        
+        # 池化：将变长序列压缩为固定长度向量
+        x = x.transpose(1, 2)                       # (batch, d_model, seq_len)
+        x = self.pooling(x).squeeze(-1)             # (batch, d_model)
+        
+        # 分类器
+        x = self.classifier(x)                      # (batch, num_classes)
+        return x
 
 
 
+# 5. 模型的训练
 
-# 5. 模型的训练 
+# 超参
+BATCH_SIZE = 32
+lr = 0.001
+EPOCHES = 30
+# 数据集
+ds_train = CSVDataset(TRAIN_DIR)
+ds_test  = CSVDataset(TEST_DIR)
+
+ld_train = DataLoader(ds_train, batch_size=BATCH_SIZE, shuffle=True)
+ld_test = DataLoader(ds_test, batch_size=BATCH_SIZE, shuffle=True)
+# 模型
+model = model = TransformerForClassfication(
+    nhead=10,
+    dim_feedforward=128,
+    num_layers=1,
+    dropout=0.0, 
+).to("cuda")
+# 优化器
+opt = optim.Adam(model.parameters(),lr=lr)
+# 相关函数
+loss_f = nn.CrossEntropyLoss()
+
+@torch.no_grad
+def eval_test():
+    # 循环测试集
+    model.eval()
+    total_loss = 0.0
+    num_batch = 0
+    total_correct = 0
+    for x, y in ld_test:
+        x = x.to("cuda")
+        y = y.to("cuda")
+        # 预测
+        y_ = model(x)
+        # 计算损失
+        loss = loss_f(y_, y)
+        total_loss += loss.detach().cpu().item()
+        num_batch += x.shape[0]
+        # 统计准确数
+        total_correct += (y_.argmax(dim=1) == y).sum().detach().cpu().item()
+    avg_loss = total_loss / num_batch
+    avg_correct = total_correct / num_batch
+    return avg_loss, avg_correct
+
+for epoch in range(EPOCHES):
+    print(F"第{epoch + 1}轮")
+    total_loss = 0.0
+    num_batch = 0
+    model.train()   # dropout,batchm
+    for idx, (x, y) in enumerate(ld_train):
+        x = x.to("cuda")
+        y = y.to("cuda")
+        # 梯度清零
+        opt.zero_grad()
+        #预测
+        y_ = model(x)
+        # 计算误差
+        loss = loss_f(y_, y)
+        # 自动求导
+        loss.backward()
+        #梯度更像
+        opt.step()
+        total_loss += loss.detach().cpu().item()
+        num_batch += x.shape[0]
+    # 评估
+    avg_loss = total_loss / num_batch
+    lss, accu = eval_test()
+    print(f"\t|-训练损失：{avg_loss:.4f}，验证损失：{lss:.4f}，准确率:{accu*100:.2f}%")
+    # 保存模型
+    torch.save(model.state_dict(),"trans_cls.pth")
+    # with torch.no_grad():
 
 
 # 6. 模型的评估
 
 
 # 7. 模型的推理
+
+
+# ============================================================================
+# 主程序入口（测试模型）
+# ============================================================================
+if __name__ == "__main__":
+    print("=" * 70)
+    print("Transformer 文本分类模型测试")
+    print("=" * 70)
+
+    # ---------------- 1. 检查词汇映射是否存在 ----------------
+    print("\n[1/5] 检查词表文件...")
+    if not os.path.exists(os.path.join(VOCAB_PATH, "labels.pk")):
+        print("⚠️  词表文件不存在，正在生成...")
+        processor = FileProcessing(NUM_WORDS)
+        processor.run()
+        print("✅ 词表生成完成!")
+    else:
+        print("✅ 词表文件已存在")
+
+    # ---------------- 2. 加载映射 ----------------
+    print("\n[2/5] 加载词汇映射...")
+    label_dict, char_dict = load_file_file()
+    num_classes = len(label_dict)
+    print(f"  - 类别数量: {num_classes}")
+    print(f"  - 字符词表大小: {len(char_dict)}")
+
+    # ---------------- 3. 测试数据集加载 ----------------
+    print("\n[3/5] 测试数据集加载...")
+    ds = CSVDataset(TRAIN_PATH)
+    print(f"  - 数据集大小: {len(ds)}")
+    print(f"  - 第一条数据形状: x={ds[0][0].shape}, y={ds[0][1]}")
+
+    # ---------------- 4. 初始化模型 ----------------
+    print("\n[4/5] 初始化 Transformer 模型...")
+    model = TransformerForClassification(
+        num_classes=num_classes,
+        nhead=4,
+        num_layers=2,
+        dim_feedforward=2048,
+        dropout=0.1
+    )
+    
+    total_params = sum(p.numel() for p in model.parameters())
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(f"  - 总参数数量: {total_params:,}")
+    print(f"  - 可训练参数: {trainable_params:,}")
+
+    # ---------------- 5. 前向传播测试 ----------------
+    print("\n[5/5] 前向传播测试...")
+    model.eval()
+    
+    # 取一条数据测试
+    x_sample, y_sample = ds[0]
+    x_batch = x_sample.unsqueeze(0)  # 添加 batch 维度: (1, seq_len)
+    
+    with torch.no_grad():
+        output = model(x_batch)  # (1, num_classes)
+        predicted_class = torch.argmax(output, dim=1).item()
+        
+    # 反向映射获取标签名
+    id_to_label = {v: k for k, v in label_dict.items()}
+    predicted_label = id_to_label.get(predicted_class, "未知")
+    true_label = id_to_label.get(y_sample.item(), "未知")
+    
+    print(f"  - 输入形状: {x_batch.shape}")
+    print(f"  - 输出形状: {output.shape}")
+    print(f"  - 真实标签: {true_label}")
+    print(f"  - 预测标签: {predicted_label}")
+    print(f"  - 预测概率分布: {torch.softmax(output, dim=1).squeeze().numpy()}")
+
+    print("\n" + "=" * 70)
+    print("✅ 模型测试完成！")
+    print("=" * 70)

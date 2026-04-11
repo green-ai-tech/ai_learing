@@ -62,17 +62,106 @@ VOCAB_PATH   = os.path.join(PROJECT_ROOT, "vocab")
 # 输出目录（保存模型、混淆矩阵等）
 OUTPUTS_PATH = os.path.join(PROJECT_ROOT, "outputs")
 MODELS_PATH  = os.path.join(PROJECT_ROOT, "models")
+LOGS_PATH    = os.path.join(PROJECT_ROOT, "logs")  # 日志保存目录
 
 # 自动创建目录
 os.makedirs(VOCAB_PATH, exist_ok=True)
 os.makedirs(OUTPUTS_PATH, exist_ok=True)
 os.makedirs(MODELS_PATH, exist_ok=True)
+os.makedirs(LOGS_PATH, exist_ok=True)
 
 NUM_WORDS    = 6000  # 保留最高频的字符数量
 
 
 # ============================================================================
-# 1.3 文件处理类
+# 1.3 双日志模块 (终端 + 文件)
+# ============================================================================
+import logging
+from datetime import datetime
+
+class DualLogger:
+    """
+    双日志系统：同时输出到终端和文件
+    
+    功能:
+        - 终端输出：实时查看训练进度
+        - 文件输出：保存完整训练日志，方便后续分析
+    """
+    
+    def __init__(self, log_file=None):
+        """
+        初始化日志器
+        
+        参数:
+            log_file: 日志文件路径，默认使用 logs/ 目录下的时间戳文件名
+        """
+        if log_file is None:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            log_file = os.path.join(LOGS_PATH, f"train_{timestamp}.log")
+        
+        # 确保日志文件父目录存在
+        os.makedirs(os.path.dirname(log_file), exist_ok=True)
+        
+        # 配置 logger
+        self.logger = logging.getLogger("TransformerTraining")
+        self.logger.setLevel(logging.INFO)
+        
+        # 避免重复添加 handler
+        if self.logger.handlers:
+            self.logger.handlers.clear()
+        
+        # 日志格式
+        formatter = logging.Formatter(
+            fmt='%(asctime)s | %(levelname)s | %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'
+        )
+        
+        # 终端 Handler
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.INFO)
+        console_handler.setFormatter(formatter)
+        self.logger.addHandler(console_handler)
+        
+        # 文件 Handler
+        file_handler = logging.FileHandler(log_file, encoding='utf-8')
+        file_handler.setLevel(logging.INFO)
+        file_handler.setFormatter(formatter)
+        self.logger.addHandler(file_handler)
+        
+        self.log_file = log_file
+    
+    def info(self, msg):
+        """输出 INFO 级别日志"""
+        self.logger.info(msg)
+    
+    def warning(self, msg):
+        """输出 WARNING 级别日志"""
+        self.logger.warning(msg)
+    
+    def error(self, msg):
+        """输出 ERROR 级别日志"""
+        self.logger.error(msg)
+    
+    def close(self):
+        """关闭所有 Handler"""
+        for handler in self.logger.handlers[:]:
+            handler.close()
+            self.logger.removeHandler(handler)
+
+
+# 全局日志实例 (延迟初始化)
+_logger = None
+
+def get_logger(log_file=None):
+    """获取或创建日志器 (单例模式)"""
+    global _logger
+    if _logger is None:
+        _logger = DualLogger(log_file)
+    return _logger
+
+
+# ============================================================================
+# 1.4 文件处理类
 # ============================================================================
 import pandas as pd
 from collections import Counter, defaultdict
@@ -686,12 +775,13 @@ class Trainer:
         - 定期评估和保存模型
     """
     
-    def __init__(self, model, train_loader, val_loader, 
-                 learning_rate=0.001, weight_decay=1e-4, 
-                 device=None, save_path="best_model.pth"):
+    def __init__(self, model, train_loader, val_loader,
+                 learning_rate=0.001, weight_decay=1e-4,
+                 device=None, save_path="best_model.pth",
+                 log_file=None):
         """
         初始化训练器
-        
+
         参数:
             model:         待训练的 PyTorch 模型
             train_loader:  训练集 DataLoader
@@ -700,29 +790,34 @@ class Trainer:
             weight_decay:  权重衰减 (L2 正则化)
             device:        训练设备 (cuda / cpu)，默认自动检测
             save_path:     最佳模型保存路径
+            log_file:      日志文件路径 (可选，默认使用 logs/ 目录)
         """
         # 自动检测设备
         if device is None:
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         else:
             self.device = device
-        
+
         self.model = model.to(self.device)
         self.train_loader = train_loader
         self.val_loader = val_loader
         self.save_path = save_path
-        
+
+        # 初始化日志器
+        self.logger = get_logger(log_file)
+        self.logger.info(f"日志已初始化，保存路径: {self.logger.log_file}")
+
         # 损失函数: CrossEntropyLoss 已经包含了 Softmax + NLLLoss
         # 适用于多分类任务，不需要在模型输出前手动加 Softmax
         self.criterion = nn.CrossEntropyLoss()
-        
+
         # 优化器: AdamW (Adam with Weight Decay)
         self.optimizer = torch.optim.AdamW(
             model.parameters(),
             lr=learning_rate,
             weight_decay=weight_decay
         )
-        
+
         # 学习率调度器: 当验证集损失不再改善时降低学习率
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             self.optimizer,
@@ -730,7 +825,7 @@ class Trainer:
             factor=0.5,       # 每次衰减为原来的 50%
             patience=2        # 等待 2 个 epoch 不改善后才衰减
         )
-        
+
         # 训练历史记录
         self.train_losses = []
         self.val_losses = []
@@ -851,59 +946,61 @@ class Trainer:
         返回:
             训练历史记录字典
         """
-        print(f"\n{'='*60}")
-        print(f"开始训练 | 设备: {self.device} | 轮数: {num_epochs}")
-        print(f"{'='*60}\n")
-        
+        self.logger.info(f"\n{'='*60}")
+        self.logger.info(f"开始训练 | 设备: {self.device} | 轮数: {num_epochs}")
+        self.logger.info(f"{'='*60}\n")
+
         for epoch in range(1, num_epochs + 1):
             start_time = time.time()
-            
+
             # ----- 训练一个 epoch -----
             train_loss, train_acc = self.train_epoch()
-            
+
             # ----- 验证 (如果有验证集) -----
             if self.val_loader is not None:
                 val_loss, val_acc = self.evaluate(self.val_loader)
-                
+
                 # 记录历史
                 self.train_losses.append(train_loss)
                 self.val_losses.append(val_loss)
                 self.train_accs.append(train_acc)
                 self.val_accs.append(val_acc)
-                
+
                 # 学习率调度
                 self.scheduler.step(val_loss)
-                
-                # 打印结果
+
+                # 记录结果
                 elapsed = time.time() - start_time
-                print(f"Epoch [{epoch}/{num_epochs}] | "
-                      f"训练损失: {train_loss:.4f} | 训练准确率: {train_acc:.4f} | "
-                      f"验证损失: {val_loss:.4f} | 验证准确率: {val_acc:.4f} | "
-                      f"耗时: {elapsed:.2f}s")
-                
+                log_msg = (f"Epoch [{epoch}/{num_epochs}] | "
+                          f"训练损失: {train_loss:.4f} | 训练准确率: {train_acc:.4f} | "
+                          f"验证损失: {val_loss:.4f} | 验证准确率: {val_acc:.4f} | "
+                          f"耗时: {elapsed:.2f}s")
+                self.logger.info(log_msg)
+
                 # ----- 保存最佳模型 -----
                 if val_acc > self.best_val_acc:
                     self.best_val_acc = val_acc
                     self.save_checkpoint(epoch, val_acc)
-                    print(f"  ↳  ✓ 保存最佳模型 (准确率: {val_acc:.4f})")
+                    self.logger.info(f"  ↳  ✓ 保存最佳模型 (准确率: {val_acc:.4f})")
             else:
                 # 没有验证集
                 self.train_losses.append(train_loss)
                 self.train_accs.append(train_acc)
-                
+
                 elapsed = time.time() - start_time
-                print(f"Epoch [{epoch}/{num_epochs}] | "
-                      f"训练损失: {train_loss:.4f} | 训练准确率: {train_acc:.4f} | "
-                      f"耗时: {elapsed:.2f}s")
-                
+                log_msg = (f"Epoch [{epoch}/{num_epochs}] | "
+                          f"训练损失: {train_loss:.4f} | 训练准确率: {train_acc:.4f} | "
+                          f"耗时: {elapsed:.2f}s")
+                self.logger.info(log_msg)
+
                 # 仅根据训练损失保存
                 if train_acc > self.best_val_acc:
                     self.best_val_acc = train_acc
                     self.save_checkpoint(epoch, train_acc)
-        
-        print(f"\n{'='*60}")
-        print(f"训练完成! 最佳准确率: {self.best_val_acc:.4f}")
-        print(f"{'='*60}\n")
+
+        self.logger.info(f"\n{'='*60}")
+        self.logger.info(f"训练完成! 最佳准确率: {self.best_val_acc:.4f}")
+        self.logger.info(f"{'='*60}\n")
         
         return {
             'train_losses': self.train_losses,
@@ -1225,143 +1322,144 @@ class Predictor:
 # 主程序入口 (完整演示)
 # ============================================================================
 if __name__ == "__main__":
+
+    # 初始化日志系统
+    logger = get_logger()
     
-    print("="*70)
-    print("Transformer 文本分类完整流程")
-    print("="*70)
-    
+    logger.info("="*70)
+    logger.info("Transformer 文本分类完整流程")
+    logger.info("="*70)
+
     # ========================================================================
     # 步骤 1: 加载数据配置
     # ========================================================================
-    print("\n[1/6] 加载词汇映射...")
+    logger.info("\n[1/6] 加载词汇映射...")
     label_to_id, char_to_id = load_vocab_mappings()
     num_classes = len(label_to_id)
     vocab_size = len(char_to_id) + 4  # +4 预留空间
-    
-    print(f"  - 类别数量: {num_classes}")
-    print(f"  - 词表大小: {vocab_size}")
-    
+
+    logger.info(f"  - 类别数量: {num_classes}")
+    logger.info(f"  - 词表大小: {vocab_size}")
+
     # ========================================================================
     # 步骤 2: 加载预训练词向量
     # ========================================================================
-    print("\n[2/6] 加载预训练词向量...")
+    logger.info("\n[2/6] 加载预训练词向量...")
     embedding_matrix = load_pretrained_embeddings(char_to_id)
-    print(f"  - 嵌入矩阵形状: {embedding_matrix.shape}")
-    
+    logger.info(f"  - 嵌入矩阵形状: {embedding_matrix.shape}")
+
     # ========================================================================
     # 步骤 3: 准备数据集
     # ========================================================================
-    print("\n[3/6] 准备数据集...")
+    logger.info("\n[3/6] 准备数据集...")
     full_dataset = CSVDataset(TRAIN_PATH)
-    
+
     # 划分训练集和验证集 (70% 训练, 30% 验证)
     train_dataset, val_dataset = full_dataset.get_splits(n_valid=0.3)
-    
+
     # 创建 DataLoader
     # 💡 改进: 减小 batch_size 可以增加训练步数，让模型学得更好
     BATCH_SIZE = 16  # 从 32 改为 16
     train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
-    
-    print(f"  - 训练集样本数: {len(train_dataset)}")
-    print(f"  - 验证集样本数: {len(val_dataset)}")
-    print(f"  - Batch Size: {BATCH_SIZE}")
-    print(f"  - 类别数量: {num_classes}")
-    
+
+    logger.info(f"  - 训练集样本数: {len(train_dataset)}")
+    logger.info(f"  - 验证集样本数: {len(val_dataset)}")
+    logger.info(f"  - Batch Size: {BATCH_SIZE}")
+
     # ========================================================================
     # 步骤 4: 初始化模型
     # ========================================================================
-    print("\n[4/6] 初始化 Transformer 模型...")
-    
-    # 💡 改进方案:
-    # 1. nhead=6: 300维 / 6头 = 每头50维（之前4头=75维，6头更细致）
-    # 2. num_layers=3: 增加层数提升表达能力
-    # 3. dim_feedforward=512: 增大前馈网络维度（之前256太小）
-    
+    logger.info("\n[4/6] 初始化 Transformer 模型...")
+
+    # 💡 优化后的参数配置:
+    # 1. nhead=5: 300/5=60，每头维度更充足（字符级任务不需要太多头）
+    # 2. num_layers=2: 2层足够，3层容易过拟合
+    # 3. dim_feedforward=256: 与300维嵌入匹配，避免参数量过大
+    # 4. dropout=0.1: 适中的dropout，防止过拟合同时保留学习能力
+
     model = TransformerTextClassifier(
         vocab_size=vocab_size,
         embedding_dim=EMBEDDING_DIM,
         num_classes=num_classes,
-        nhead=6,                # 💡 从 4 改为 6 (300/6=50 更合理)
-        num_layers=3,           # 💡 从 2 改为 3 (增强表达能力)
-        dim_feedforward=512,    # 💡 从 256 改为 512 (之前太小)
-        dropout=0.2,            # 💡 从 0.1 改为 0.2 (防止过拟合)
+        nhead=5,                # 💡 300/5=60，每头维度更充足
+        num_layers=2,           # 💡 2层足够，3层容易过拟合
+        dim_feedforward=256,    # 💡 与300维嵌入匹配
+        dropout=0.1,            # 💡 适中dropout
         pretrained_embeddings=embedding_matrix
     )
-    
+
     # 打印模型参数数量
     total_params = sum(p.numel() for p in model.parameters())
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print(f"  - 总参数数量: {total_params:,}")
-    print(f"  - 可训练参数: {trainable_params:,}")
-    
+    logger.info(f"  - 总参数数量: {total_params:,}")
+    logger.info(f"  - 可训练参数: {trainable_params:,}")
+
     # ========================================================================
     # 步骤 5: 训练模型
     # ========================================================================
-    print("\n[5/6] 开始训练...")
-    
-    # 💡 改进: 降低学习率，避免破坏预训练词向量
+    logger.info("\n[5/6] 开始训练...")
+
+    # 💡 优化训练参数:
+    # 1. learning_rate=0.0003: 更温和的学习率，保护预训练词向量
+    # 2. weight_decay=1e-4: 回到默认值，避免过度正则化
+    # 3. epochs=50: 给模型足够时间学习（文本分类通常需要 30-50 轮）
+
     trainer = Trainer(
         model=model,
         train_loader=train_loader,
         val_loader=val_loader,
-        learning_rate=0.0005,   # 💡 从 0.001 改为 0.0005 (更温和)
-        weight_decay=1e-3,      # 💡 从 1e-4 改为 1e-3 (增强正则化)
+        learning_rate=0.0003,   # 💡 更温和的学习率
+        weight_decay=1e-4,      # 💡 回到默认值
         save_path=os.path.join(MODELS_PATH, "best_transformer_model.pth")
     )
-    
-    # 执行训练 (增加到 30 轮)
-    # 💡 10轮太少，文本分类通常需要 20-50 轮
-    history = trainer.train(num_epochs=30)
-    
+
+    # 执行训练 50 轮
+    history = trainer.train(num_epochs=50)
+
     # ========================================================================
     # 步骤 6: 评估和推理
     # ========================================================================
-    print("\n[6/6] 模型评估与推理...")
-    
+    logger.info("\n[6/6] 模型评估与推理...")
+
     # 加载最佳模型
     trainer.load_checkpoint()
-    
+
     # 评估 (使用验证集)
     evaluator = Evaluator(
         model=model,
         dataloader=val_loader,
         label_names=list(label_to_id.keys())
     )
-    
+
     # 打印分类报告
     evaluator.print_classification_report()
-    
+
     # 测试推理
-    print("\n" + "="*70)
-    print("推理测试")
-    print("="*70)
-    
+    logger.info("\n" + "="*70)
+    logger.info("推理测试")
+    logger.info("="*70)
+
     predictor = Predictor(
         model=model,
         char_to_id=char_to_id,
         label_to_id=label_to_id
     )
-    
+
     # 测试几条样本
     test_texts = [
-        "今天天气真不错，适合出去运动",
-        "这部电影太好看了，强烈推荐",
-        "科技巨头发布了最新款智能手机"
+        "中国铁腰与英超球队埃弗顿分道扬镳，闪电般转投谢联（本赛季成功升入英超）",
+        "各国拥有的核弹头数量俄罗斯媒体认为，各国拥有的核弹头数量：中国以450枚排行第四，仅以50枚的差距落后于法国。",
+        "参加成人高考时，７３岁的徐思华被拦在了大门外，工作人员问：“老同志，你到这儿来干什么？”当听到他也是考生时，对方"
     ]
     
     for text in test_texts:
         results = predictor.predict(text, top_k=3)
-        print(f"\n文本: {text}")
-        print("预测结果:")
+        logger.info(f"\n文本: {text}")
+        logger.info("预测结果:")
         for label, prob in results:
-            print(f"  - {label}: {prob:.4f}")
-    
-    print("\n" + "="*70)
-    print("全部完成!")
-    print("="*70)
+            logger.info(f"  - {label}: {prob:.4f}")
 
-
-
-
-            
+    logger.info("\n" + "="*70)
+    logger.info("全部完成!")
+    logger.info("="*70)
