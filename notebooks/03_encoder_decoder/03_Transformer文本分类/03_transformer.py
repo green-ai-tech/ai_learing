@@ -789,7 +789,7 @@ class Trainer:
             learning_rate: 初始学习率
             weight_decay:  权重衰减 (L2 正则化)
             device:        训练设备 (cuda / cpu)，默认自动检测
-            save_path:     最佳模型保存路径
+            save_path:     最佳模型保存路径（会自动添加时间戳）
             log_file:      日志文件路径 (可选，默认使用 logs/ 目录)
         """
         # 自动检测设备
@@ -801,11 +801,21 @@ class Trainer:
         self.model = model.to(self.device)
         self.train_loader = train_loader
         self.val_loader = val_loader
-        self.save_path = save_path
+
+        # 💡 新增：每次训练生成带时间戳的模型文件名，避免覆盖历史模型
+        if save_path:
+            dir_name, file_name = os.path.split(save_path)
+            name, ext = os.path.splitext(file_name)
+            self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            self.save_path = os.path.join(dir_name, f"{name}_{self.timestamp}{ext}")
+        else:
+            self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            self.save_path = save_path
 
         # 初始化日志器
         self.logger = get_logger(log_file)
-        self.logger.info(f"日志已初始化，保存路径: {self.logger.log_file}")
+        self.logger.info(f"📂 本次模型将保存至: {self.save_path}")
+        self.logger.info(f"📄 日志已初始化，保存路径: {self.logger.log_file}")
 
         # 损失函数: CrossEntropyLoss 已经包含了 Softmax + NLLLoss
         # 适用于多分类任务，不需要在模型输出前手动加 Softmax
@@ -1414,8 +1424,8 @@ if __name__ == "__main__":
         save_path=os.path.join(MODELS_PATH, "best_transformer_model.pth")
     )
 
-    # 执行训练 50 轮
-    history = trainer.train(num_epochs=50)
+    # 执行训练 30 轮
+    history = trainer.train(num_epochs=30)
 
     # ========================================================================
     # 步骤 6: 评估和推理
@@ -1450,7 +1460,8 @@ if __name__ == "__main__":
     test_texts = [
         "中国铁腰与英超球队埃弗顿分道扬镳，闪电般转投谢联（本赛季成功升入英超）",
         "各国拥有的核弹头数量俄罗斯媒体认为，各国拥有的核弹头数量：中国以450枚排行第四，仅以50枚的差距落后于法国。",
-        "参加成人高考时，７３岁的徐思华被拦在了大门外，工作人员问：“老同志，你到这儿来干什么？”当听到他也是考生时，对方"
+        "参加成人高考时，７３岁的徐思华被拦在了大门外，工作人员问：“老同志，你到这儿来干什么？”当听到他也是考生时，",
+        "我是一个兵，来自老百姓"
     ]
     
     for text in test_texts:
