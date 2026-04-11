@@ -6,7 +6,6 @@
 ---
 
 ## 📁 文件结构
-
 ```
 04_大模型agent/
 ├── 01_环境安装.ipynb                      # 开发环境配置与大模型 API 接入
@@ -86,14 +85,4 @@ pip install openai langchain langchain-community transformers
 ## 🔗 相关资源
 
 - [LangChain 官方文档](https://python.langchain.com/)
-- [OpenAI API 文档](https://platform.openai.com/docs/)
 - [Prompt Engineering Guide](https://www.promptingguide.ai/)
-- [Awesome LLM Apps](https://github.com/Shubhamsaboo/awesome-llm-apps)
-
----
-
-## 📅 更新记录
-
-| 日期 | 更新内容 |
-|------|----------|
-| 2026-04-11 | 初始版本，梳理大模型 Agent 学习路线与文件说明 |
