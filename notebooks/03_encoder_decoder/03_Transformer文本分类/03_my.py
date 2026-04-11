@@ -469,12 +469,12 @@ if __name__ == "__main__":
     print(f"'猫' 的向量前 10 维: {embedding_matrix[char_to_id['猫'] + START_NO][:10]}")
     """
 
+    """
     # 测试 4: 数据集加载
     ds = CSVDataset(TRAIN_PATH)
     print(f"数据集大小: {len(ds)}")
     print(f"第一条数据 - 特征形状: {ds[0][0].shape}, 标签: {ds[0][1]}")
-
-
+    """
 
 
             
