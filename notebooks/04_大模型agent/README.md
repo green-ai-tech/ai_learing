@@ -49,8 +49,6 @@
 
 ## 🚀 快速开始
 
-### 1. 环境准备
-确保已安装大模型相关的 Python 库。具体依赖请参考 `01_环境安装.ipynb`。
 ```bash
 pip install openai langchain langchain-community transformers
 ```
