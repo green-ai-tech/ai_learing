@@ -119,31 +119,76 @@ def get_ip_info() -> str:
         return f"当前公网IP：{ip}"
     except:
         return "获取IP失败"
+    
+@tool
+def get_stock(stock_name: str) -> str:
+    """
+    查询股票实时数据（新浪免费接口，无需Token）
+    输入：股票名称 或 代码，如：贵州茅台、000001、600519
+    """
+    import requests
+    import re
+
+    def code_from_name(name):
+        # 简单映射（常用股）
+        mapping = {
+            "贵州茅台": "sh600519", "平安银行": "sz000001",
+            "招商银行": "sh600036", "阿里巴巴": "hk09988",
+            "腾讯": "hk00700", "苹果": "aapl"
+        }
+        if name in mapping:
+            return mapping[name]
+        # 6位数字自动加前缀
+        if re.match(r"^\d{6}$", name):
+            return f"sh{name}" if name.startswith(("6","5","9")) else f"sz{name}"
+        return None
+
+    code = code_from_name(stock_name.strip())
+    if not code:
+        return f"未找到股票：{stock_name}"
+
+    url = f"http://hq.sinajs.cn/list={code}"
+    headers = {"Referer": "https://finance.sina.com.cn/"}
+    try:
+        res = requests.get(url, headers=headers, timeout=5)
+        data = res.text.strip()
+        # 解析格式：var hq_str_sh600519="名称,开盘,昨收,现价,最高,最低,..."
+        match = re.search(r'="([^"]+)"', data)
+        if not match:
+            return "数据解析失败"
+        arr = match.group(1).split(",")
+        if len(arr) < 32:
+            return "数据不完整"
+
+        name = arr[0]
+        open_p = float(arr[1])
+        pre_close = float(arr[2])
+        price = float(arr[3])
+        high = float(arr[4])
+        low = float(arr[5])
+        change = price - pre_close
+        change_pct = (change / pre_close) * 100
+
+        return (
+            f"📈 {name}（{code}）\n"
+            f"当前价：{price:.2f} 元\n"
+            f"开盘：{open_p:.2f} | 最高：{high:.2f} | 最低：{low:.2f}\n"
+            f"涨跌：{change:.2f} 元 ({change_pct:.2f}%)\n"
+        )
+    except Exception as e:
+        return f"查询失败：{str(e)}"
+
 #=====================3.0 模型与代理 初始化======================
 from langchain.chat_models import init_chat_model
 from langchain.agents import create_agent
 
 
-
-#尝试使用动态模型
-# model = init_chat_model()
-# if prompt :
-#     response = model.invoke(
-#         input=prompt,
-#         tools=[get_weather, get_datetime, get_ip_info],
-#         config={
-#             "configurable": {"model": "ollama:qwen3.5:9b", "temperature": 0.9}
-#         }
-#     )
-
-
 #常规 静态模型
 model = init_chat_model(model="ollama:qwen3.5:9b",tempreature=0.7)
 
-
 agent = create_agent(
     model=model,
-    tools=[get_weather,get_datetime,get_ip_info]
+    tools=[get_weather,get_datetime,get_ip_info,get_stock]
 )
 #===================4.0 逻辑实现=================================
 
@@ -164,20 +209,6 @@ if prompt:
     #显示用户的输入
     with st.chat_message("user"):
         st.markdown(f'<div style="color: green; text-align="right">{prompt}</div>',unsafe_allow_html=True)
-
-    #存放用户消息
-    st.session_state.conversation_history.append({"role":"user","content":prompt})
-
-
-    #显示AI的推理结果
-    # with st.chat_message("ai"):
-    #     with st.spinner("思考中..."):
-
-    #         response = agent.invoke({"messages":[{"role":"user","content":prompt}]})
-
-    #         st.markdown(f'<div style="color: blue; text-align="right">{response['messages'][-1].content}</div>',unsafe_allow_html=True)
-    # #存放AI的消息        
-    # st.session_state.conversation_history.append({"role":"ai","content":response['messages'][-1].content})
 
 
 

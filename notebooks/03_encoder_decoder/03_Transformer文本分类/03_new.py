@@ -39,9 +39,13 @@ class PickleFileOprator:
 #op = PickleFileOprator(None,"/notebooks/03_encoder_decoder/ds/dataset/chars")
 
 
-DATASET_PATH = "/Users/logicye/Code/ai_learning/notebooks/03_encoder_decoder/ds/dataset"
-TRAIN_PATH   = os.path.join(DATASET_PATH,"train.csv")
-TEST_PATH    = os.path.join(DATASET_PATH,"test.csv")
+# 获取当前脚本所在目录的父目录（项目根目录）
+import os
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+DATASET_PATH = os.path.join(PROJECT_ROOT, "ds/dataset")
+TRAIN_PATH   = os.path.join(DATASET_PATH, "train.csv")
+TEST_PATH    = os.path.join(DATASET_PATH, "test.csv")
 NUM_WORDS    = 6000                # 处理词的多少，可根据情况而定
 
 
@@ -84,8 +88,8 @@ class FileProcessing:
 
         label_list,top_n_chars = self._read_train_file()
 
-        PickleFileOprator(data=label_list,file_path="/Users/logicye/Code/ai_learning/notebooks/03_encoder_decoder/labels.pk").save()
-        PickleFileOprator(data=top_n_chars,file_path="/Users/logicye/Code/ai_learning/notebooks/03_encoder_decoder/chars.pk").save()
+        PickleFileOprator(data=label_list,file_path=os.path.join(PROJECT_ROOT,"labels.pk")).save()
+        PickleFileOprator(data=top_n_chars,file_path=os.path.join(PROJECT_ROOT,"chars.pk")).save()
        
 
 # processor = FileProcessing(NUM_WORDS)
@@ -107,8 +111,8 @@ class FileProcessing:
 """
 
 def load_file_file():
-    labels = PickleFileOprator(file_path="/Users/logicye/Code/ai_learning/notebooks/03_encoder_decoder/labels.pk").read()
-    chars  = PickleFileOprator(file_path="/Users/logicye/Code/ai_learning/notebooks/03_encoder_decoder/chars.pk").read()
+    labels = PickleFileOprator(file_path=os.path.join(PROJECT_ROOT,"labels.pk")).read()
+    chars  = PickleFileOprator(file_path=os.path.join(PROJECT_ROOT,"chars.pk")).read()
 
     #编号
     label_dict = dict(zip(labels,range(len(labels))))
@@ -161,6 +165,7 @@ def text_feature(labels, contents, label_dict, char_dict):
             sample = sample + [PAD_NO] * (SENT_LENGTH - len(sample))
         
         all_samples.append(sample)
+
     return all_samples, y_true
 
 
@@ -206,7 +211,7 @@ from gensim.models import KeyedVectors
 #读取词袋
 label_dict, char_dict = load_file_file()
 em_model = KeyedVectors.load_word2vec_format(
-    "/Users/logicye/Code/ai_learning/notebooks/03_encoder_decoder/ds/dataset/sgns.wiki.char.bz2",
+    os.path.join(DATASET_PATH, "sgns.wiki.char.bz2"),
     binary=False,
     encoding="utf-8",
     unicode_errors="ignore"
@@ -225,24 +230,50 @@ for char ,index in char_dict.items():
 # print(pretraind_vector[0])
 
 
-#===========================================
-import torch.nn as nn
-from torch.utils.data import DataLoader
 
-embedding = nn.Embedding.from_pretrained(pretraind_vector,freeze=False,padding_idx=0)
-
-ds = CSVDataset(TRAIN_PATH)
-
-train_loader = DataLoader(ds,batch_size=5,shuffle=True)
-for x_b,y_b in train_loader:
-    v_emb = embedding(x_b)
-print(v_emb.shape)
 
 
 
 
 
 # 4. transformer模型算法实现
+import torch.nn as nn
+class TransformerForClassfication(nn.Module):
+    def __init__(self,
+                  nhead = 4,
+                  num_layers =2,
+                  dim_feedforward = 2048,
+                  dropout = 0.1,
+                  activation ="relu",
+                  classfier_dropout=0.1
+                  ):
+        super(TransformerForClassfication,self).__init__()
+
+        d_model = EMBEDDING_SIZE
+
+        assert d_model %nhead == 0"nhead必须真出d_model"
+        # 1. 词嵌入
+        self.emb = nn.Embedding.from_pretrained(pretraind_vector,freeze=False,padding_idx=0)
+
+        # 2. 位置编码
+        
+        # 3. 编码器（核心是编码单元）
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=d_model,
+            nhead=nhead,
+            dim_feedforward=dim_feedforward,
+            activation=activation,
+            batch_first=True,
+            dropout=dropout
+        )
+        self.transformer_encoder = nn.TransformerEncoder(
+            encoder_layer,
+        )
+
+        # 4. 分类器
+        self.classifier = nn.Linear(？,5)
+
+
 
 
 # 5. 模型的训练 
