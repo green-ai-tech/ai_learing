@@ -1,5 +1,7 @@
 #=====================1.0 设置基础界面===============================
 import streamlit as st
+import re
+from urllib.parse import quote
 
 st.set_page_config(
     page_title="聊天模型示例",
@@ -21,9 +23,251 @@ from langchain.tools import tool
 from datetime import datetime                       #获取时间的库
 import requests
 
+SINA_HEADERS = {
+    "Referer": "https://finance.sina.com.cn/",
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0 Safari/537.36"
+    ),
+}
 
-import requests
-from langchain.tools import tool
+COMMON_STOCK_MAPPING = {
+    "贵州茅台": "sh600519",
+    "平安银行": "sz000001",
+    "招商银行": "sh600036",
+    "阿里巴巴": "hk09988",
+    "阿里巴巴美股": "gb_baba",
+    "腾讯": "hk00700",
+    "腾讯控股": "hk00700",
+    "苹果": "gb_aapl",
+    "特斯拉": "gb_tsla",
+    "英伟达": "gb_nvda",
+    "微软": "gb_msft",
+}
+
+
+def _safe_float(value):
+    try:
+        return float(str(value).replace(",", "").strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def _format_number(value, unit=""):
+    if value is None:
+        return "--"
+
+    abs_value = abs(value)
+    if abs_value >= 100000000:
+        return f"{value / 100000000:.2f}亿{unit}"
+    if abs_value >= 10000:
+        return f"{value / 10000:.2f}万{unit}"
+    return f"{value:.2f}{unit}" if isinstance(value, float) else f"{value}{unit}"
+
+
+def _search_stock_code(keyword: str):
+    """通过新浪搜索接口，将股票名称解析为行情代码。"""
+    search_url = (
+        "https://suggest3.sinajs.cn/suggest/"
+        f"type=11,12,13,14,15&key={quote(keyword)}&name=suggestdata"
+    )
+    response = requests.get(search_url, headers=SINA_HEADERS, timeout=5)
+    response.encoding = "gbk"
+
+    match = re.search(r'="([^"]*)"', response.text)
+    if not match or not match.group(1):
+        return None
+
+    for item in match.group(1).split(";"):
+        parts = item.split(",")
+        if len(parts) < 4:
+            continue
+
+        code = parts[3].strip().lower()
+        if re.fullmatch(r"(sh|sz)\d{6}", code):
+            return code
+        if re.fullmatch(r"hk\d{5}", code):
+            return code
+        if re.fullmatch(r"gb_[a-z.]+", code):
+            return code
+    return None
+
+
+def _normalize_stock_code(query: str):
+    text = query.strip()
+    lowered = text.lower()
+
+    if not text:
+        return None
+
+    if text in COMMON_STOCK_MAPPING:
+        return COMMON_STOCK_MAPPING[text]
+
+    if re.fullmatch(r"(sh|sz)\d{6}", lowered):
+        return lowered
+    if re.fullmatch(r"hk\d{5}", lowered):
+        return lowered
+    if re.fullmatch(r"gb_[a-z.]+", lowered):
+        return lowered
+
+    if re.fullmatch(r"\d{6}", text):
+        return f"sh{text}" if text.startswith(("5", "6", "9")) else f"sz{text}"
+    if re.fullmatch(r"\d{5}", text):
+        return f"hk{text}"
+    if re.fullmatch(r"[A-Za-z.]{1,10}", text):
+        return f"gb_{lowered}"
+
+    return _search_stock_code(text)
+
+
+def _fetch_stock_fields(code: str):
+    quote_url = f"https://hq.sinajs.cn/list={code}"
+    response = requests.get(quote_url, headers=SINA_HEADERS, timeout=5)
+    response.encoding = "gbk"
+    response.raise_for_status()
+
+    match = re.search(r'="([^"]*)"', response.text.strip())
+    if not match or not match.group(1):
+        return None
+
+    fields = [item.strip() for item in match.group(1).split(",")]
+    if not any(fields):
+        return None
+    return fields
+
+
+def _parse_a_stock(code: str, fields):
+    if len(fields) < 32:
+        return None
+
+    pre_close = _safe_float(fields[2])
+    price = _safe_float(fields[3])
+    change = None if price is None or pre_close is None else price - pre_close
+    change_pct = None if change is None or not pre_close else change / pre_close * 100
+
+    return {
+        "market": "A股",
+        "name": fields[0],
+        "code": code,
+        "price": price,
+        "open": _safe_float(fields[1]),
+        "pre_close": pre_close,
+        "high": _safe_float(fields[4]),
+        "low": _safe_float(fields[5]),
+        "change": change,
+        "change_pct": change_pct,
+        "volume": _safe_float(fields[8]),
+        "turnover": _safe_float(fields[9]),
+        "currency": "CNY",
+        "updated_at": f"{fields[30]} {fields[31]}".strip(),
+    }
+
+
+def _parse_hk_stock(code: str, fields):
+    if len(fields) < 18:
+        return None
+
+    updated_at = fields[17]
+    if len(fields) > 18 and fields[18]:
+        updated_at = f"{fields[17]} {fields[18]}"
+
+    return {
+        "market": "港股",
+        "name": fields[1] or fields[0],
+        "code": code,
+        "price": _safe_float(fields[6]),
+        "open": _safe_float(fields[2]),
+        "pre_close": _safe_float(fields[3]),
+        "high": _safe_float(fields[4]),
+        "low": _safe_float(fields[5]),
+        "change": _safe_float(fields[7]),
+        "change_pct": _safe_float(fields[8]),
+        "volume": _safe_float(fields[12]) if len(fields) > 12 else None,
+        "turnover": _safe_float(fields[11]) if len(fields) > 11 else None,
+        "currency": "HKD",
+        "updated_at": updated_at.strip(),
+    }
+
+
+def _parse_us_stock(code: str, fields):
+    if len(fields) < 11:
+        return None
+
+    pre_close = _safe_float(fields[26]) if len(fields) > 26 else None
+    price = _safe_float(fields[1])
+    change = _safe_float(fields[4]) if len(fields) > 4 else None
+    if change is None and price is not None and pre_close is not None:
+        change = price - pre_close
+
+    change_pct = _safe_float(fields[2]) if len(fields) > 2 else None
+    if change_pct is None and change is not None and pre_close:
+        change_pct = change / pre_close * 100
+
+    return {
+        "market": "美股",
+        "name": fields[0],
+        "code": code,
+        "price": price,
+        "open": _safe_float(fields[5]) if len(fields) > 5 else None,
+        "pre_close": pre_close,
+        "high": _safe_float(fields[6]) if len(fields) > 6 else None,
+        "low": _safe_float(fields[7]) if len(fields) > 7 else None,
+        "change": change,
+        "change_pct": change_pct,
+        "volume": _safe_float(fields[10]) if len(fields) > 10 else None,
+        "turnover": None,
+        "market_cap": _safe_float(fields[12]) if len(fields) > 12 else None,
+        "currency": "USD",
+        "updated_at": fields[3] if len(fields) > 3 else "",
+    }
+
+
+def _parse_stock_quote(code: str, fields):
+    if code.startswith(("sh", "sz")):
+        return _parse_a_stock(code, fields)
+    if code.startswith("hk"):
+        return _parse_hk_stock(code, fields)
+    if code.startswith("gb_"):
+        return _parse_us_stock(code, fields)
+    return None
+
+
+def _render_stock_quote(stock):
+    if not stock:
+        return "数据解析失败"
+
+    price_text = "--" if stock["price"] is None else f'{stock["price"]:.2f} {stock["currency"]}'
+    open_text = "--" if stock["open"] is None else f'{stock["open"]:.2f}'
+    high_text = "--" if stock["high"] is None else f'{stock["high"]:.2f}'
+    low_text = "--" if stock["low"] is None else f'{stock["low"]:.2f}'
+
+    change_text = "--"
+    if stock["change"] is not None:
+        sign = "+" if stock["change"] > 0 else ""
+        change_text = f"{sign}{stock['change']:.2f}"
+
+    pct_text = "--"
+    if stock["change_pct"] is not None:
+        sign = "+" if stock["change_pct"] > 0 else ""
+        pct_text = f"{sign}{stock['change_pct']:.2f}%"
+
+    lines = [
+        f"📈 {stock['name']}（{stock['market']} / {stock['code']}）",
+        f"当前价：{price_text}",
+        f"开盘：{open_text} | 最高：{high_text} | 最低：{low_text}",
+        f"涨跌：{change_text} ({pct_text})",
+    ]
+
+    if stock["volume"] is not None:
+        lines.append(f"成交量：{_format_number(stock['volume'], '股')}")
+    if stock["turnover"] is not None:
+        lines.append(f"成交额：{_format_number(stock['turnover'])} {stock['currency']}")
+    if stock.get("market_cap") is not None:
+        lines.append(f"总市值：{_format_number(stock['market_cap'])} {stock['currency']}")
+    if stock["updated_at"]:
+        lines.append(f"更新时间：{stock['updated_at']}")
+
+    return "\n".join(lines)
 
 def get_coordinates(city_name: str):
     """通过城市名获取经纬度（使用Open-Meteo地理编码API）"""
@@ -123,60 +367,35 @@ def get_ip_info() -> str:
 @tool
 def get_stock(stock_name: str) -> str:
     """
-    查询股票实时数据（新浪免费接口，无需Token）
-    输入：股票名称 或 代码，如：贵州茅台、000001、600519
+    查询股票实时行情（新浪免费接口，无需 Token）。
+    支持 A 股、港股、美股。
+    输入示例：贵州茅台、600519、000001、00700、hk00700、AAPL
     """
-    import requests
-    import re
+    query = stock_name.strip()
+    if not query:
+        return "请输入股票名称或代码。"
 
-    def code_from_name(name):
-        # 简单映射（常用股）
-        mapping = {
-            "贵州茅台": "sh600519", "平安银行": "sz000001",
-            "招商银行": "sh600036", "阿里巴巴": "hk09988",
-            "腾讯": "hk00700", "苹果": "aapl"
-        }
-        if name in mapping:
-            return mapping[name]
-        # 6位数字自动加前缀
-        if re.match(r"^\d{6}$", name):
-            return f"sh{name}" if name.startswith(("6","5","9")) else f"sz{name}"
-        return None
-
-    code = code_from_name(stock_name.strip())
-    if not code:
-        return f"未找到股票：{stock_name}"
-
-    url = f"http://hq.sinajs.cn/list={code}"
-    headers = {"Referer": "https://finance.sina.com.cn/"}
     try:
-        res = requests.get(url, headers=headers, timeout=5)
-        data = res.text.strip()
-        # 解析格式：var hq_str_sh600519="名称,开盘,昨收,现价,最高,最低,..."
-        match = re.search(r'="([^"]+)"', data)
-        if not match:
-            return "数据解析失败"
-        arr = match.group(1).split(",")
-        if len(arr) < 32:
-            return "数据不完整"
+        code = _normalize_stock_code(query)
+        if not code:
+            return (
+                f"未识别股票：{stock_name}。\n"
+                "可以尝试输入更完整的名称，或直接输入代码，例如：600519、hk00700、AAPL。"
+            )
 
-        name = arr[0]
-        open_p = float(arr[1])
-        pre_close = float(arr[2])
-        price = float(arr[3])
-        high = float(arr[4])
-        low = float(arr[5])
-        change = price - pre_close
-        change_pct = (change / pre_close) * 100
+        fields = _fetch_stock_fields(code)
+        if not fields:
+            return f"未查询到 {stock_name} 的行情数据。"
 
-        return (
-            f"📈 {name}（{code}）\n"
-            f"当前价：{price:.2f} 元\n"
-            f"开盘：{open_p:.2f} | 最高：{high:.2f} | 最低：{low:.2f}\n"
-            f"涨跌：{change:.2f} 元 ({change_pct:.2f}%)\n"
-        )
+        stock = _parse_stock_quote(code, fields)
+        if not stock:
+            return f"{stock_name} 的数据格式暂不支持解析。"
+
+        return _render_stock_quote(stock)
+    except requests.exceptions.RequestException as e:
+        return f"查询失败：网络请求错误：{e}"
     except Exception as e:
-        return f"查询失败：{str(e)}"
+        return f"查询失败：{e}"
 
 #=====================3.0 模型与代理 初始化======================
 from langchain.chat_models import init_chat_model
@@ -184,7 +403,7 @@ from langchain.agents import create_agent
 
 
 #常规 静态模型
-model = init_chat_model(model="ollama:qwen3.5:9b",tempreature=0.7)
+model = init_chat_model(model="ollama:qwen3-vl:4b ",tempreature=0.7)
 
 agent = create_agent(
     model=model,
