@@ -85,6 +85,9 @@ datasets/
 dataset/*
 mnist/
 SpeechCommands/
+vdb/
+
+
 
 
 # 数据格式
@@ -93,6 +96,8 @@ SpeechCommands/
 *.parquet
 *.en
 *.bz2
+
+*.pdf
 
 # ==============================================
 # 📝 日志 / 杂项
