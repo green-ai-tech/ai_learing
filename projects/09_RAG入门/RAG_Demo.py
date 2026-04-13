@@ -29,7 +29,7 @@ def search_rag(query:str) ->str :
 
 #======================智能体=======================
 model  = init_chat_model(
-    model="ollama:qwen3.5:9b",
+    model="ollama:qwen3.5:4b",
     max_tokens = 512,
     temperature = 0.7,
     base_url = "http://127.0.0.1:11434"
@@ -63,4 +63,22 @@ response = agent.invoke(
     ]})
 
 # 打印回复
+print(response)
+print("="*100)
 print(response["messages"][-1].content)
+
+for msg in response["messages"]:
+    print("*" * 80)
+    # 打印消息类型（只显示类名）
+    print("消息类型:", type(msg).__name__)
+
+    # 普通消息内容（人类/AI消息）
+    if hasattr(msg, "content") and msg.content:
+        print("\t|- 消息内容:", msg.content)
+
+    # 工具调用（AI 调用工具
+    if hasattr(msg, "tool_calls") and msg.tool_calls:
+        print("\t|- 工具调用:")
+        for idx, tc in enumerate(msg.tool_calls, 1):
+            print(f"\t\t{idx}. 工具名: {tc['name']}")
+            print(f"\t\t   参数: {tc['args']}")

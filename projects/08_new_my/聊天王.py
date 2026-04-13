@@ -1,7 +1,15 @@
+# 屏蔽 transformers 库的 __path__ 警告（必须在所有 import 之前）
+import sys, os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
+from utils.suppress_warnings import apply, restore
+apply()
+
 import streamlit as st
 from langchain.chat_models import init_chat_model as icm
 from langchain_core.messages import HumanMessage, SystemMessage
 
+# 关键 import 完成后恢复 stderr
+restore()
 
 # ===================== 2. 页面配置 =====================
 st.set_page_config(
@@ -35,7 +43,7 @@ model_name = st.selectbox(
 cout =0;
 
 # 根据选择，给 model 赋值正确的模型对象
-if model_name == "幼年高斯（qwen0.8b版）":
+if model_name == "幼年高斯-谨慎使用（qwen0.8b版）":
     cout =0;
     model = icm(
         model="qwen3.5:0.8b ",
@@ -70,7 +78,7 @@ system_prompt = """
 2.  用严谨、优雅、充满智慧的风格解答数学问题，尤其是微积分、数论、几何等领域
 3.  可以用通俗的语言解释复杂的数学原理，同时保持数学家的严谨性
 4.  当用户和你聊天时，用高斯的口吻交流，比如可以分享你对数学、人生的看法
-现在，请以高斯的身份，回答用户的问题。
+    现在，请以高斯的身份，回答用户的问题。
 """
 
 

@@ -1,7 +1,18 @@
+# 屏蔽 transformers 库的 __path__ 警告（必须在所有 import 之前）
+import sys, os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from utils.suppress_warnings import apply, restore
+apply()
+
 #=====================1.0 设置基础界面===============================
 import streamlit as st
-import re
-from urllib.parse import quote
+from langchain.tools import tool
+from datetime import datetime                       #获取时间的库
+import requests
+from utils.stock_query import query_stock
+
+# 关键 import 完成后恢复 stderr
+restore()
 
 st.set_page_config(
     page_title="聊天模型示例",
@@ -19,255 +30,7 @@ st.caption(body="使用的是免费本地部署的大模型",width="stretch",tex
 
 prompt=st.chat_input("请输入你的问题：")
 #=====================2.0 定义工具函数===========================
-from langchain.tools import tool
-from datetime import datetime                       #获取时间的库
-import requests
 
-SINA_HEADERS = {
-    "Referer": "https://finance.sina.com.cn/",
-    "User-Agent": (
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0 Safari/537.36"
-    ),
-}
-
-COMMON_STOCK_MAPPING = {
-    "贵州茅台": "sh600519",
-    "平安银行": "sz000001",
-    "招商银行": "sh600036",
-    "阿里巴巴": "hk09988",
-    "阿里巴巴美股": "gb_baba",
-    "腾讯": "hk00700",
-    "腾讯控股": "hk00700",
-    "苹果": "gb_aapl",
-    "特斯拉": "gb_tsla",
-    "英伟达": "gb_nvda",
-    "微软": "gb_msft",
-}
-
-
-def _safe_float(value):
-    try:
-        return float(str(value).replace(",", "").strip())
-    except (TypeError, ValueError):
-        return None
-
-
-def _format_number(value, unit=""):
-    if value is None:
-        return "--"
-
-    abs_value = abs(value)
-    if abs_value >= 100000000:
-        return f"{value / 100000000:.2f}亿{unit}"
-    if abs_value >= 10000:
-        return f"{value / 10000:.2f}万{unit}"
-    return f"{value:.2f}{unit}" if isinstance(value, float) else f"{value}{unit}"
-
-
-def _search_stock_code(keyword: str):
-    """通过新浪搜索接口，将股票名称解析为行情代码。"""
-    search_url = (
-        "https://suggest3.sinajs.cn/suggest/"
-        f"type=11,12,13,14,15&key={quote(keyword)}&name=suggestdata"
-    )
-    response = requests.get(search_url, headers=SINA_HEADERS, timeout=5)
-    response.encoding = "gbk"
-
-    match = re.search(r'="([^"]*)"', response.text)
-    if not match or not match.group(1):
-        return None
-
-    for item in match.group(1).split(";"):
-        parts = item.split(",")
-        if len(parts) < 4:
-            continue
-
-        code = parts[3].strip().lower()
-        if re.fullmatch(r"(sh|sz)\d{6}", code):
-            return code
-        if re.fullmatch(r"hk\d{5}", code):
-            return code
-        if re.fullmatch(r"gb_[a-z.]+", code):
-            return code
-    return None
-
-
-def _normalize_stock_code(query: str):
-    text = query.strip()
-    lowered = text.lower()
-
-    if not text:
-        return None
-
-    if text in COMMON_STOCK_MAPPING:
-        return COMMON_STOCK_MAPPING[text]
-
-    if re.fullmatch(r"(sh|sz)\d{6}", lowered):
-        return lowered
-    if re.fullmatch(r"hk\d{5}", lowered):
-        return lowered
-    if re.fullmatch(r"gb_[a-z.]+", lowered):
-        return lowered
-
-    if re.fullmatch(r"\d{6}", text):
-        return f"sh{text}" if text.startswith(("5", "6", "9")) else f"sz{text}"
-    if re.fullmatch(r"\d{5}", text):
-        return f"hk{text}"
-    if re.fullmatch(r"[A-Za-z.]{1,10}", text):
-        return f"gb_{lowered}"
-
-    return _search_stock_code(text)
-
-
-def _fetch_stock_fields(code: str):
-    quote_url = f"https://hq.sinajs.cn/list={code}"
-    response = requests.get(quote_url, headers=SINA_HEADERS, timeout=5)
-    response.encoding = "gbk"
-    response.raise_for_status()
-
-    match = re.search(r'="([^"]*)"', response.text.strip())
-    if not match or not match.group(1):
-        return None
-
-    fields = [item.strip() for item in match.group(1).split(",")]
-    if not any(fields):
-        return None
-    return fields
-
-
-def _parse_a_stock(code: str, fields):
-    if len(fields) < 32:
-        return None
-
-    pre_close = _safe_float(fields[2])
-    price = _safe_float(fields[3])
-    change = None if price is None or pre_close is None else price - pre_close
-    change_pct = None if change is None or not pre_close else change / pre_close * 100
-
-    return {
-        "market": "A股",
-        "name": fields[0],
-        "code": code,
-        "price": price,
-        "open": _safe_float(fields[1]),
-        "pre_close": pre_close,
-        "high": _safe_float(fields[4]),
-        "low": _safe_float(fields[5]),
-        "change": change,
-        "change_pct": change_pct,
-        "volume": _safe_float(fields[8]),
-        "turnover": _safe_float(fields[9]),
-        "currency": "CNY",
-        "updated_at": f"{fields[30]} {fields[31]}".strip(),
-    }
-
-
-def _parse_hk_stock(code: str, fields):
-    if len(fields) < 18:
-        return None
-
-    updated_at = fields[17]
-    if len(fields) > 18 and fields[18]:
-        updated_at = f"{fields[17]} {fields[18]}"
-
-    return {
-        "market": "港股",
-        "name": fields[1] or fields[0],
-        "code": code,
-        "price": _safe_float(fields[6]),
-        "open": _safe_float(fields[2]),
-        "pre_close": _safe_float(fields[3]),
-        "high": _safe_float(fields[4]),
-        "low": _safe_float(fields[5]),
-        "change": _safe_float(fields[7]),
-        "change_pct": _safe_float(fields[8]),
-        "volume": _safe_float(fields[12]) if len(fields) > 12 else None,
-        "turnover": _safe_float(fields[11]) if len(fields) > 11 else None,
-        "currency": "HKD",
-        "updated_at": updated_at.strip(),
-    }
-
-
-def _parse_us_stock(code: str, fields):
-    if len(fields) < 11:
-        return None
-
-    pre_close = _safe_float(fields[26]) if len(fields) > 26 else None
-    price = _safe_float(fields[1])
-    change = _safe_float(fields[4]) if len(fields) > 4 else None
-    if change is None and price is not None and pre_close is not None:
-        change = price - pre_close
-
-    change_pct = _safe_float(fields[2]) if len(fields) > 2 else None
-    if change_pct is None and change is not None and pre_close:
-        change_pct = change / pre_close * 100
-
-    return {
-        "market": "美股",
-        "name": fields[0],
-        "code": code,
-        "price": price,
-        "open": _safe_float(fields[5]) if len(fields) > 5 else None,
-        "pre_close": pre_close,
-        "high": _safe_float(fields[6]) if len(fields) > 6 else None,
-        "low": _safe_float(fields[7]) if len(fields) > 7 else None,
-        "change": change,
-        "change_pct": change_pct,
-        "volume": _safe_float(fields[10]) if len(fields) > 10 else None,
-        "turnover": None,
-        "market_cap": _safe_float(fields[12]) if len(fields) > 12 else None,
-        "currency": "USD",
-        "updated_at": fields[3] if len(fields) > 3 else "",
-    }
-
-
-def _parse_stock_quote(code: str, fields):
-    if code.startswith(("sh", "sz")):
-        return _parse_a_stock(code, fields)
-    if code.startswith("hk"):
-        return _parse_hk_stock(code, fields)
-    if code.startswith("gb_"):
-        return _parse_us_stock(code, fields)
-    return None
-
-
-def _render_stock_quote(stock):
-    if not stock:
-        return "数据解析失败"
-
-    price_text = "--" if stock["price"] is None else f'{stock["price"]:.2f} {stock["currency"]}'
-    open_text = "--" if stock["open"] is None else f'{stock["open"]:.2f}'
-    high_text = "--" if stock["high"] is None else f'{stock["high"]:.2f}'
-    low_text = "--" if stock["low"] is None else f'{stock["low"]:.2f}'
-
-    change_text = "--"
-    if stock["change"] is not None:
-        sign = "+" if stock["change"] > 0 else ""
-        change_text = f"{sign}{stock['change']:.2f}"
-
-    pct_text = "--"
-    if stock["change_pct"] is not None:
-        sign = "+" if stock["change_pct"] > 0 else ""
-        pct_text = f"{sign}{stock['change_pct']:.2f}%"
-
-    lines = [
-        f"📈 {stock['name']}（{stock['market']} / {stock['code']}）",
-        f"当前价：{price_text}",
-        f"开盘：{open_text} | 最高：{high_text} | 最低：{low_text}",
-        f"涨跌：{change_text} ({pct_text})",
-    ]
-
-    if stock["volume"] is not None:
-        lines.append(f"成交量：{_format_number(stock['volume'], '股')}")
-    if stock["turnover"] is not None:
-        lines.append(f"成交额：{_format_number(stock['turnover'])} {stock['currency']}")
-    if stock.get("market_cap") is not None:
-        lines.append(f"总市值：{_format_number(stock['market_cap'])} {stock['currency']}")
-    if stock["updated_at"]:
-        lines.append(f"更新时间：{stock['updated_at']}")
-
-    return "\n".join(lines)
 
 def get_coordinates(city_name: str):
     """通过城市名获取经纬度（使用Open-Meteo地理编码API）"""
@@ -366,85 +129,92 @@ def get_ip_info() -> str:
     
 @tool
 def get_stock(stock_name: str) -> str:
-    """
-    查询股票实时行情（新浪免费接口，无需 Token）。
-    支持 A 股、港股、美股。
-    输入示例：贵州茅台、600519、000001、00700、hk00700、AAPL
-    """
-    query = stock_name.strip()
-    if not query:
-        return "请输入股票名称或代码。"
-
-    try:
-        code = _normalize_stock_code(query)
-        if not code:
-            return (
-                f"未识别股票：{stock_name}。\n"
-                "可以尝试输入更完整的名称，或直接输入代码，例如：600519、hk00700、AAPL。"
-            )
-
-        fields = _fetch_stock_fields(code)
-        if not fields:
-            return f"未查询到 {stock_name} 的行情数据。"
-
-        stock = _parse_stock_quote(code, fields)
-        if not stock:
-            return f"{stock_name} 的数据格式暂不支持解析。"
-
-        return _render_stock_quote(stock)
-    except requests.exceptions.RequestException as e:
-        return f"查询失败：网络请求错误：{e}"
-    except Exception as e:
-        return f"查询失败：{e}"
+    """查询股票实时行情，支持 A 股、港股、美股"""
+    return query_stock(stock_name)
 
 #=====================3.0 模型与代理 初始化======================
 from langchain.chat_models import init_chat_model
 from langchain.agents import create_agent
+from langchain_chroma import Chroma
+from langchain.embeddings import init_embeddings
 
+# RAG 知识库设置
+DB_PATH = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'assets', 'vector_database')
+DB_PATH = os.path.abspath(DB_PATH)
+emb = init_embeddings("ollama:qwen3-embedding:4b")
+db = Chroma(embedding_function=emb, persist_directory=DB_PATH)
+
+@tool
+def search_rag(query: str) -> str:
+    """检索知识库，对查询进行检索增强"""
+    print(f"🔍 正在检索: {query}")
+    try:
+        docs = db.similarity_search(query=query, k=3)
+        if not docs:
+            return "知识库中未找到相关内容。"
+        results = []
+        for i, doc in enumerate(docs, 1):
+            source = doc.metadata.get("file_name", "未知")
+            results.append(f"[{i}] {doc.page_content}\n   — {source}")
+        return "\n\n".join(results)
+    except Exception as e:
+        return f"检索失败: {e}"
+
+system_prompt = (
+    "当用户询问如下关键词以及相近的词的时候，使用调用 search_rag 工具进行检索增强：\n"
+    "LLM Agent、AI Agent、大语言模型智能体、LangChain、检索增强生成 RAG、增强查询、"
+    "工具调用 Agent、多智能体系统、自主智能体、智能体规划、智能体记忆机制、大模型推理、"
+    "知识库问答、向量数据库、文档检索、上下文增强、智能体框架、大模型应用开发、"
+    "智能体工作流、生成式检索增强"
+)
 
 #常规 静态模型
-model = init_chat_model(model="ollama:qwen3-vl:4b ",tempreature=0.7)
+model = init_chat_model(model="ollama:qwen3.5:9b ",temperature=0.7)
 
 agent = create_agent(
     model=model,
-    tools=[get_weather,get_datetime,get_ip_info,get_stock]
+    system_prompt=system_prompt,
+    tools=[get_weather, get_datetime, get_ip_info, get_stock, search_rag]
 )
 #===================4.0 逻辑实现=================================
 
-    #保留对话
+# 初始化对话历史
 if "conversation_history" not in st.session_state:
     st.session_state.conversation_history = []
 
-    #显示历史对话
+# 显示历史对话
 for message in st.session_state.conversation_history:
-    if message["role"] !="ai":
-       st.markdown(f'<div style="color: green; text-align: right">{message["content"]}</div>', unsafe_allow_html=True)
-    else:
-        st.markdown(f'<div style="color: blue; text-align="left">{message["content"]}</div>',unsafe_allow_html=True)
+    with st.chat_message(message["role"]):
+        if message["role"] == "user":
+            st.markdown(f'<span style="color: #2ecc71;">{message["content"]}</span>', unsafe_allow_html=True)
+        else:
+            st.markdown(f'<span style="color: #3498db;">{message["content"]}</span>', unsafe_allow_html=True)
 
-
-
+# 处理新消息
 if prompt:
-    #显示用户的输入
+    # 显示用户消息
     with st.chat_message("user"):
-        st.markdown(f'<div style="color: green; text-align="right">{prompt}</div>',unsafe_allow_html=True)
+        st.markdown(f'<span style="color: #2ecc71;">{prompt}</span>', unsafe_allow_html=True)
 
+    # 存入用户消息
+    st.session_state.conversation_history.append({"role": "user", "content": prompt})
 
+    # 构建完整对话上下文
+    messages = [{"role": m["role"], "content": m["content"]} for m in st.session_state.conversation_history]
 
-    with st.chat_message("ai"):
+    # AI 回复
+    with st.chat_message("assistant"):
         message_placeholder = st.empty()
         full_response = ""
         with st.spinner("思考中..."):
-            # stream_mode="messages" 返回 (message_chunk, metadata)
             for chunk, metadata in agent.stream(
-                {"messages": [("user", prompt)]},
+                {"messages": messages},
                 stream_mode="messages"
             ):
-                # chunk 是 AIMessageChunk 对象，包含 content 属性
                 if chunk and hasattr(chunk, "content") and chunk.content:
                     full_response += chunk.content
-                    message_placeholder.markdown(
-                        full_response + '<span style="color: blue;">▌</span>',unsafe_allow_html=True)
-            message_placeholder.markdown(f'<span style="color: blue;">{full_response}</span>',unsafe_allow_html=True)
+                    message_placeholder.markdown(f'<span style="color: #3498db;">{full_response}</span>▌', unsafe_allow_html=True)
+        message_placeholder.markdown(f'<span style="color: #3498db;">{full_response}</span>', unsafe_allow_html=True)
 
-    st.session_state.conversation_history.append({"role": "ai", "content": full_response})
+    # 存入 AI 回复
+    st.session_state.conversation_history.append({"role": "assistant", "content": full_response})

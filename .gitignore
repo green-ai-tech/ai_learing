@@ -86,6 +86,7 @@ dataset/*
 mnist/
 SpeechCommands/
 vdb/
+assets/vector_database/*
 
 
 
