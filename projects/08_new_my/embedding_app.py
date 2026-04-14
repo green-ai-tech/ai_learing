@@ -283,44 +283,56 @@ class VectorizationWorker(QThread):
         suffix = path.suffix.lower()
         try:
             if suffix == ".pdf":
-                # 优先使用 pypdf（PyPDF2 的现代替代品）
+                # 1. 尝试 pypdf
                 try:
                     from pypdf import PdfReader
-                    text = ""
                     with open(path, "rb") as f:
                         reader = PdfReader(f)
+                        if len(reader.pages) == 0:
+                            return ""
+                        text = ""
                         for page in reader.pages:
                             page_text = page.extract_text()
                             if page_text:
                                 text += page_text + "\n"
+                    if not text.strip():
+                        self.log.emit(f"  ⚠️ PDF 可能为扫描图片版，无法提取文本")
                     return text
-                except ImportError:
-                    pass
-                # 回退：PyPDF2
+                except Exception as e:
+                    self.log.emit(f"  ⚠️ pypdf 解析失败 ({type(e).__name__})")
+
+                # 2. 尝试 PyPDF2
                 try:
                     import PyPDF2
-                    text = ""
                     with open(path, "rb") as f:
                         reader = PyPDF2.PdfReader(f)
+                        if len(reader.pages) == 0:
+                            return ""
+                        text = ""
                         for page in reader.pages:
                             page_text = page.extract_text()
                             if page_text:
                                 text += page_text + "\n"
                     return text
-                except ImportError:
+                except Exception:
                     pass
-                # 回退：pdfplumber
+
+                # 3. 尝试 pdfplumber (对复杂排版兼容性更好)
                 try:
                     import pdfplumber
-                    text = ""
                     with pdfplumber.open(path) as pdf:
+                        if not pdf.pages:
+                            return ""
+                        text = ""
                         for page in pdf.pages:
                             t = page.extract_text()
                             if t:
                                 text += t + "\n"
                     return text
                 except ImportError:
-                    self.log.emit("  ⚠️ 未安装 PDF 解析库（pypdf / PyPDF2 / pdfplumber），跳过 PDF 文件")
+                    self.log.emit("  💡 提示: 安装 `pdfplumber` 可能解决复杂 PDF 读取问题")
+                    return ""
+                except Exception:
                     return ""
             else:
                 # TXT / MD
