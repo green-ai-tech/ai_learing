@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     )
 
     #====================1. 模型与代理的配置 =======================
-    llm_model: str                = Field(default="ollama:gemma4:e8b", description="使用的LLM模型")
+    llm_model: str                = Field(default="ollama:gemma4:e4b", description="使用的LLM模型")
     llm_temperature: float        = Field(default=0.7, ge=0.0, le=2.0, description="温度")
     llm_max_tokens: Optional[int] = Field(default=512, description="最大token")
     llm_base_url: str             = Field(default="http://127.0.0.1:11434/", description="模型地址")

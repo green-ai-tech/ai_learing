@@ -1,6 +1,6 @@
 # pages/login.py
 import streamlit as st
-import time
+from agents import create_base_agent
 from utils import get_logger
 
 logger = get_logger(__name__)       #日志系统
@@ -51,7 +51,12 @@ with col2:
                 st.session_state.username = username
                 logger.success("登录成功：({username})")
                 st.success("登录成功！正在跳转...")
-                time.sleep(0.5)
+                #time.sleep(0.5)
+                #创建智能体
+                agent = create_base_agent() 
+                #存储智能体在会话中
+                st.session_state.agent = agent  #session状态中，使用agent字段，用来存放agent
+
                 st.switch_page("pages/home.py")
             else:
                 st.error("用户名或密码错误")
