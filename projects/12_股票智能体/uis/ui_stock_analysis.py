@@ -8,11 +8,17 @@ def consume_and_yield(iterator):
     # 将累积结果保存到 session_state 的某个变量中
     st.session_state.last_full_response = full
 
-# 保存聊天历史记录
-if "messages" not in st.session_state:  # 判定messages变量是否已经创建
-        st.session_state.messages = []   # 在回话对象中创建一个列表，用来保存我们的聊天内容
-
 def ui_stock_analysis():
+    # 保存聊天历史记录
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+    if "last_full_response" not in st.session_state:
+        st.session_state.last_full_response = ""
+
+    if "agent" not in st.session_state:
+        st.error("智能体未初始化，请重新登录")
+        return
+
     st.title(body="股市数据分析", width="stretch", text_alignment="center")
     st.caption(body="使用的是免费本地部署的大模型", text_alignment="center")
     
@@ -50,9 +56,6 @@ def ui_stock_analysis():
                 # st.markdown(response, text_alignment="left")
                 response = st.session_state.agent.stream(prompt)
                 st.write_stream(consume_and_yield(response), cursor="|")   # 流式输出
-                full_response = ""
-                for chunk in response:
-                    full_response += chunk
         # 保存到会话
         st.session_state.messages.append(
             {

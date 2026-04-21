@@ -8,7 +8,7 @@
 
 from typing import List,Optional,Dict,Any,Iterator,AsyncIterator,Union,Sequence         #约束定义类型
 from langchain.messages import AIMessage,HumanMessage,SystemMessage
-from langchain_core.messages import BaseMessage
+from langchain_core.messages import BaseMessage, AIMessageChunk
 from langchain.tools import BaseTool
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain.agents import create_agent
@@ -52,7 +52,7 @@ class BaseAgent:
         初始化 Base Agent
         Args:
             model: LLM 模型，可以是：
-                - 字符串标识符（如 "ollama:qwen3:4b"）
+                - 字符串标识符（如 "ollama:gemma4:e4b"）
                 - BaseChatModel 实例
                 - None，使用默认配置创建
             tools: Agent 可用的工具列表, 可以是：
@@ -90,14 +90,24 @@ class BaseAgent:
         
         # ==================== 工具初始化 ====================
         if tools is None:
-            # 默认使用基础工具集（不需要 API Key）
             self.tools = BASIC_TOOLS
-            logger.info(f"使用的工具集 ({len(self.tools)} 个工具)")
         else:
             self.tools = list(tools) if tools else []
-            self.tools.extend(BASIC_TOOLS)   # 合并基础工具集
+            self.tools.extend(BASIC_TOOLS)
+
+        if self.tools and isinstance(self.model, BaseChatModel):
+            try:
+                self.model.bind_tools(self.tools)
+                logger.info(f"使用的工具集 ({len(self.tools)} 个工具)")
+            except NotImplementedError:
+                logger.warning("当前模型不支持 bind_tools，已自动禁用工具")
+                self.tools = []
+            except Exception as e:
+                logger.warning(f"工具能力检测失败，已自动禁用工具: {repr(e)}")
+                self.tools = []
+        else:
             logger.info(f"使用的工具集 ({len(self.tools)} 个工具)")
-        
+
         # ==================== 提示词初始化 ====================
         if system_prompt is None:
             # 根据模式生成系统提示词
@@ -131,7 +141,7 @@ class BaseAgent:
             
             logger.success("Agent 创建成功（CompiledStateGraph）")
             logger.success(f"\t配置: tools={len(self.tools)}")
-                     # model="ollama:qwen3:4b",  
+ 
         except Exception as e:
             logger.error(f"Agent 创建失败: {e}")
             raise
@@ -248,10 +258,10 @@ class BaseAgent:
                     # messages 模式：chunk 是 (message, metadata) 元组
                     if isinstance(chunk, tuple) and len(chunk) == 2:
                         message, metadata = chunk
-                        if isinstance(message, AIMessage) and message.content:
+                        if isinstance(message, (AIMessage, AIMessageChunk)) and message.content:
                             # logger.success(f"\t流式输出: {message.content[:50]}...")
                             yield message.content   #没使用return，使用yield（协程）
-                    elif isinstance(chunk, AIMessage) and chunk.content:
+                    elif isinstance(chunk, (AIMessage, AIMessageChunk)) and chunk.content:
                         # logger.success(f"\t流式输出: {chunk.content[:50]}...")
                         yield chunk.content
                 
@@ -267,9 +277,21 @@ class BaseAgent:
             logger.success("Agent 流式调用完成")
             
         except Exception as e:
-            error_msg = f"Agent 流式执行失败: {str(e)}"
-            logger.error(f"{error_msg}")
-            yield f"\n\n抱歉，处理您的请求时出现错误: {str(e)}"
+            if isinstance(e, NotImplementedError):
+                logger.warning("当前模型或适配器不支持 stream，已自动回退为 invoke")
+                fallback_response = self.invoke(
+                    input_text=input_text,
+                    chat_history=chat_history,
+                    thread_id=thread_id,
+                    **kwargs,
+                )
+                if fallback_response:
+                    yield fallback_response
+                return
+
+            error_detail = repr(e)
+            logger.exception(f"Agent 流式执行失败: {error_detail}")
+            yield f"\n\n抱歉，处理您的请求时出现错误: {error_detail}"
 
 
 

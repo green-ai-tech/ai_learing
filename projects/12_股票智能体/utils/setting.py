@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     llm_model: str                = Field(default="ollama:gemma4:e4b", description="使用的LLM模型")
     llm_temperature: float        = Field(default=0.7, ge=0.0, le=2.0, description="温度")
     llm_max_tokens: Optional[int] = Field(default=512, description="最大token")
-    llm_base_url: str             = Field(default="http://127.0.0.1:11434/", description="模型地址")
+    llm_base_url: str             = Field(default="http://192.168.8.21:11434/", description="模型地址")
     llm_streaming: bool           = Field(default=False, description="流式输出")
 
     #====================2. RAG与向量数据库的配置===================
@@ -61,10 +61,11 @@ class Settings(BaseSettings):
     log_rotation: str               = Field(default="100 MB", description="日志文件轮转大小")
     log_retention: str              = Field(default="30 days", description="日志文件保留时间")
 
-# 全局单例
-settings = Settings()
+
+
 
 if __name__ == "__main__":
+    settings = Settings()
     print("✅ 项目根目录：", PROJECT_ROOT)
     print("✅ .env 路径：", ENV_FILE_PATH)
     print("✅ 向量库路径：", settings.vector_store_dir)
