@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>素雅·静斋 | 轻聊主页</title>
+    <link rel="stylesheet" href="/static/chat.css">
+</head>
+<body>
+<div class="app-container">
+    <header class="header-area">
+        <div class="brand">
+            <h1>静斋·清谈</h1>
+            <span>素心 · 简言</span>
+        </div>
+        <div class="header-meta">
+            🌿 如沐清风 {{date_time}}
+        </div>
+    </header>
+
+    <aside class="sidebar">
+        <div class="menu-section">
+            <div class="section-title">对话 · 拾光</div>
+            <div class="menu-item active">
+                <div class="menu-icon">🍃</div>
+                <div class="menu-text">闲叙日常</div>
+            </div>
+            <div class="menu-item">
+                <div class="menu-icon">📘</div>
+                <div class="menu-text">随笔札记</div>
+            </div>
+            <div class="menu-item">
+                <div class="menu-icon">✨</div>
+                <div class="menu-text">灵感集</div>
+            </div>
+        </div>
+        <div class="menu-section">
+            <div class="section-title">收藏 · 雅集</div>
+            <div class="menu-item">
+                <div class="menu-icon">📌</div>
+                <div class="menu-text">摘录短语</div>
+            </div>
+            <div class="menu-item">
+                <div class="menu-icon">🖌️</div>
+                <div class="menu-text">水墨清韵</div>
+            </div>
+            <div class="menu-item">
+                <div class="menu-icon">🎐</div>
+                <div class="menu-text">心音流转</div>
+            </div>
+        </div>
+        <div class="sidebar-footer">
+            <div>界面 • 素雅如一</div>
+            <div class="sidebar-footer-note">⚘ 自在 安然</div>
+        </div>
+    </aside>
+
+    <main class="chat-area">
+        <div class="chat-messages-container" id="chatMessagesContainer">
+            <div class="message-item message-assistant">
+                <div class="message-bubble">
+                    午安，这里是一方素净之地。随意聊聊，或分享片刻思绪。
+                </div>
+                <div class="message-time">稍早 · 静斋</div>
+            </div>
+            <div class="message-item message-assistant">
+                <div class="message-bubble">
+                    你可以点击下方输入框，留下只言片语，我会静静倾听。
+                </div>
+                <div class="message-time">此刻 · 欣然</div>
+            </div>
+        </div>
+
+        <div class="floating-input-panel">
+            <textarea rows="1" class="input-message" id="chatInput" placeholder="写下你的心事或闲谈..."></textarea>
+            <button class="send-btn" id="sendBtn" aria-label="发送消息">↵</button>
+        </div>
+    </main>
+</div>
+
+<script src="/static/chat.js"></script>
+</body>
+</html>

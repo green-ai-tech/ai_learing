@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>素雅·静斋 | 轻聊主页</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #eef2f5;   /* 柔和灰底，素净温润 */
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+            color: #1e2a3e;
+        }
+
+        /* 整体布局网格：三区域结构 */
+        .app-container {
+            display: grid;
+            grid-template-rows: auto 1fr;    /* 顶部标题区固定高度，其余自适应 */
+            grid-template-columns: 260px 1fr; /* 侧边栏宽度260px，右侧聊天区占满 */
+            height: 100%;
+            width: 100%;
+        }
+
+        /* ========= 顶部标题区 ========= */
+        .header-area {
+            grid-column: 1 / -1;       /* 横跨两列 */
+            background: #ffffffdd;
+            backdrop-filter: blur(2px);
+            background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+            border-bottom: 1px solid #e2e8f0;
+            padding: 0 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+            z-index: 10;
+        }
+
+        .brand {
+            display: flex;
+            align-items: baseline;
+            gap: 0.5rem;
+        }
+
+        .brand h1 {
+            font-size: 1.65rem;
+            font-weight: 500;
+            letter-spacing: -0.3px;
+            background: linear-gradient(120deg, #2c3e50, #3b5d7a);
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+        }
+
+        .brand span {
+            font-size: 0.8rem;
+            color: #7f8c8d;
+            font-weight: 400;
+            border-left: 1px solid #cbd5e1;
+            padding-left: 0.6rem;
+        }
+
+        .header-meta {
+            font-size: 0.8rem;
+            color: #5b6e8c;
+            background: #f1f5f9;
+            padding: 0.3rem 0.8rem;
+            border-radius: 30px;
+        }
+
+        /* ========= 侧边栏菜单区 (素雅轻盈) ========= */
+        .sidebar {
+            background: #ffffffea;
+            backdrop-filter: blur(0px);
+            border-right: 1px solid #e9edf2;
+            padding: 2rem 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+            overflow-y: auto;
+            box-shadow: 1px 0 5px rgba(0,0,0,0.02);
+        }
+
+        /* 菜单分组 */
+        .menu-section {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .menu-section .section-title {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 500;
+            color: #8da2b5;
+            padding-left: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .menu-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.6rem 1rem;
+            border-radius: 14px;
+            font-size: 0.95rem;
+            font-weight: 450;
+            color: #2c3e50;
+            transition: all 0.2s ease;
+            cursor: default;
+            background: transparent;
+        }
+
+        /* 微交互仅用于视觉反馈，无需大量js，仅样式 */
+        .menu-item:hover {
+            background: #f0f4f9;
+            color: #2c5f8a;
+        }
+
+        .menu-icon {
+            font-size: 1.2rem;
+            width: 1.6rem;
+            text-align: center;
+            opacity: 0.7;
+        }
+
+        .menu-text {
+            flex: 1;
+        }
+
+        /* 选中态简单模拟 (纯css焦点，无额外脚本) */
+        .menu-item.active {
+            background: #eef3fc;
+            color: #1c6f9c;
+            font-weight: 500;
+            border-left: 3px solid #859fae;
+        }
+
+        /* 侧边栏底部装饰 */
+        .sidebar-footer {
+            margin-top: auto;
+            font-size: 0.7rem;
+            text-align: center;
+            color: #9aaebf;
+            border-top: 1px solid #eef2f6;
+            padding-top: 1.5rem;
+        }
+
+        /* ========= 右侧聊天区域 ========= */
+        .chat-area {
+            background: #f7fafc;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* 聊天记录容器 (可滚动) */
+        .chat-messages-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.5rem 1.8rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            scroll-behavior: smooth;
+        }
+
+        /* 自定义滚动条 */
+        .chat-messages-container::-webkit-scrollbar {
+            width: 5px;
+        }
+        .chat-messages-container::-webkit-scrollbar-track {
+            background: #e2e8f0;
+            border-radius: 5px;
+        }
+        .chat-messages-container::-webkit-scrollbar-thumb {
+            background: #b9cadb;
+            border-radius: 5px;
+        }
+
+        /* 聊天气泡组件样式 */
+        .message-item {
+            display: flex;
+            flex-direction: column;
+            max-width: 80%;
+            animation: fadeInUp 0.2s ease-out;
+        }
+
+        /* 用户消息靠右，助手消息靠左，风格干净 */
+        .message-user {
+            align-self: flex-end;
+        }
+        .message-assistant {
+            align-self: flex-start;
+        }
+
+        .message-bubble {
+            padding: 0.8rem 1.2rem;
+            border-radius: 24px;
+            line-height: 1.45;
+            font-size: 0.9rem;
+            word-wrap: break-word;
+            box-shadow: 0 1px 1px rgba(0,0,0,0.02);
+        }
+
+        .message-user .message-bubble {
+            background: #e1e9f1;
+            color: #1f2f3e;
+            border-bottom-right-radius: 6px;
+            background: #dee8f0;
+        }
+
+        .message-assistant .message-bubble {
+            background: #ffffff;
+            border: 1px solid #e2edf2;
+            color: #2c3e50;
+            border-bottom-left-radius: 6px;
+        }
+
+        .message-time {
+            font-size: 0.65rem;
+            color: #96a9bb;
+            margin: 0.3rem 0.8rem 0;
+        }
+
+        /* 浮动输入面板 (固定于聊天区底部) */
+        .floating-input-panel {
+            background: #ffffffef;
+            backdrop-filter: blur(12px);
+            border-top: 1px solid #e2eaf0;
+            border-radius: 28px 28px 0 0;
+            margin: 0 1rem 1rem 1rem;
+            padding: 0.8rem 1rem;
+            display: flex;
+            align-items: flex-end;
+            gap: 0.75rem;
+            box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.02), 0 2px 8px rgba(0, 0, 0, 0.03);
+            transition: all 0.1s ease;
+            z-index: 5;
+        }
+
+        /* 多行文本输入，自适应高度 (但为了素雅美观，留固定最小高度) */
+        .input-message {
+            flex: 1;
+            border: none;
+            background: #f2f6fa;
+            border-radius: 28px;
+            padding: 0.7rem 1.2rem;
+            font-family: inherit;
+            font-size: 0.9rem;
+            resize: none;
+            outline: none;
+            transition: 0.1s;
+            color: #1e2f3c;
+            max-height: 120px;
+            line-height: 1.4;
+        }
+
+        .input-message:focus {
+            background: #ffffff;
+            box-shadow: 0 0 0 2px #cbdde9;
+        }
+
+        .send-btn {
+            background: #dce5ec;
+            border: none;
+            width: 42px;
+            height: 42px;
+            border-radius: 30px;
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: 0.2s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #4b6b8a;
+            background: #eef2f7;
+        }
+
+        .send-btn:hover {
+            background: #cfdfea;
+            color: #2c5a7a;
+            transform: scale(0.96);
+        }
+
+        /* 空状态占位提示 */
+        .empty-chat-placeholder {
+            text-align: center;
+            margin-top: 4rem;
+            color: #a0bbce;
+            font-size: 0.85rem;
+            pointer-events: none;
+        }
+
+        /* 小动画 */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(12px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* 响应式 让侧边栏在极小屏幕上可调，保持干净 */
+        @media (max-width: 640px) {
+            .app-container {
+                grid-template-columns: 200px 1fr;
+            }
+            .sidebar {
+                padding: 1rem 0.5rem;
+            }
+            .chat-messages-container {
+                padding: 1rem;
+            }
+            .floating-input-panel {
+                margin: 0 0.5rem 0.8rem 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="app-container">
+    <!-- 顶部标题区 -->
+    <header class="header-area">
+        <div class="brand">
+            <h1>静斋·清谈</h1>
+            <span>素心 · 简言</span>
+        </div>
+        <div class="header-meta">
+            🌿 如沐清风
+        </div>
+    </header>
+
+    <!-- 侧边栏菜单区 (无复杂脚本，纯布局展示) -->
+    <aside class="sidebar">
+        <div class="menu-section">
+            <div class="section-title">对话 · 拾光</div>
+            <div class="menu-item active">
+                <div class="menu-icon">🍃</div>
+                <div class="menu-text">闲叙日常</div>
+            </div>
+            <div class="menu-item">
+                <div class="menu-icon">📘</div>
+                <div class="menu-text">随笔札记</div>
+            </div>
+            <div class="menu-item">
+                <div class="menu-icon">✨</div>
+                <div class="menu-text">灵感集</div>
+            </div>
+        </div>
+        <div class="menu-section">
+            <div class="section-title">收藏 · 雅集</div>
+            <div class="menu-item">
+                <div class="menu-icon">📌</div>
+                <div class="menu-text">摘录短语</div>
+            </div>
+            <div class="menu-item">
+                <div class="menu-icon">🖌️</div>
+                <div class="menu-text">水墨清韵</div>
+            </div>
+            <div class="menu-item">
+                <div class="menu-icon">🎐</div>
+                <div class="menu-text">心音流转</div>
+            </div>
+        </div>
+        <div class="sidebar-footer">
+            <div>界面 • 素雅如一</div>
+            <div style="margin-top: 6px;">⚘ 自在 安然</div>
+        </div>
+    </aside>
+
+    <!-- 右侧聊天区域 -->
+    <main class="chat-area">
+        <!-- 聊天消息记录容器，动态添加聊天组件 -->
+        <div class="chat-messages-container" id="chatMessagesContainer">
+            <!-- 初始欢迎消息作为一个聊天组件示例 -->
+            <div class="message-item message-assistant">
+                <div class="message-bubble">
+                    午安，这里是一方素净之地。随意聊聊，或分享片刻思绪。
+                </div>
+                <div class="message-time">稍早 · 静斋</div>
+            </div>
+            <div class="message-item message-assistant">
+                <div class="message-bubble">
+                    你可以点击下方输入框，留下只言片语，我会静静倾听。
+                </div>
+                <div class="message-time">此刻 · 欣然</div>
+            </div>
+        </div>
+
+        <!-- 浮动输入面板 -->
+        <div class="floating-input-panel">
+            <textarea rows="1" class="input-message" id="chatInput" placeholder="写下你的心事或闲谈..."></textarea>
+            <button class="send-btn" id="sendBtn" aria-label="发送消息">↵</button>
+        </div>
+    </main>
+</div>
+
+<!-- 
+    JavaScript部分极简，仅用于实现聊天核心功能(添加消息组件)，
+    没有大量复杂脚本，不依赖外部库，保持干净整洁。
+-->
+<script>
+    (function() {
+        // 只做一件事: 管理聊天消息组件的动态添加，不产生冗杂逻辑
+        const container = document.getElementById('chatMessagesContainer');
+        const inputEl = document.getElementById('chatInput');
+        const sendButton = document.getElementById('sendBtn');
+
+        // 辅助函数: 获取当前时间 简洁格式 HH:MM
+        function getCurrentTime() {
+            const now = new Date();
+            const hours = now.getHours().toString().padStart(2,'0');
+            const minutes = now.getMinutes().toString().padStart(2,'0');
+            return `${hours}:${minutes}`;
+        }
+
+        // 辅助函数: 创建消息DOM元素 (聊天组件)
+        // type: 'user' 或 'assistant'
+        // content: 文本内容
+        function createMessageComponent(type, content, timeStr = null) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message-item message-${type === 'user' ? 'user' : 'assistant'}`;
+            
+            const bubbleDiv = document.createElement('div');
+            bubbleDiv.className = 'message-bubble';
+            bubbleDiv.textContent = content;
+            
+            const timeSpan = document.createElement('div');
+            timeSpan.className = 'message-time';
+            const displayTime = timeStr || getCurrentTime();
+            // 添加额外小标记, 用户/助手区分文字
+            const senderLabel = type === 'user' ? '你' : '小斋';
+            timeSpan.textContent = `${displayTime} · ${senderLabel}`;
+            
+            messageDiv.appendChild(bubbleDiv);
+            messageDiv.appendChild(timeSpan);
+            return messageDiv;
+        }
+
+        // 添加一条消息并自动滚动到底部
+        function appendMessage(type, content, customTime = null) {
+            if (!container) return;
+            const msgElement = createMessageComponent(type, content, customTime);
+            container.appendChild(msgElement);
+            // 滚动到底部，顺畅自然
+            container.scrollTo({
+                top: container.scrollHeight,
+                behavior: 'smooth'
+            });
+        }
+
+        // 处理发送消息逻辑 (自动添加用户消息 + 延时回复“助手”仿若素雅回应)
+        function handleSendMessage() {
+            let rawText = inputEl.value.trim();
+            if (rawText === "") {
+                // 空消息不做处理，也可轻提醒但不弹窗，仅简单忽略（保留干净体验）
+                // 可选：临时增加一个极简占位提示，但为了不繁杂，直接return
+                return;
+            }
+            // 1. 添加用户消息
+            appendMessage('user', rawText);
+            // 2. 清空输入框，并调整高度（textarea重置行高）
+            inputEl.value = '';
+            // 重置textarea的高度(因为rows=1，但浏览器可能撑开，恢复1行高度)
+            inputEl.style.height = 'auto';
+            inputEl.style.height = 'auto';
+            // 3. 模拟助手回复 (素雅风格，根据关键词随机轻微变化，保持简约)
+            // 为了体现“聊天组件”可以灵活添加，不编写大量api占用，仅本地模拟轻逻辑。
+            let replyText = '';
+            // 简单自然的回复库，保留清雅节制
+            if (rawText.includes('你好') || rawText.includes('嗨') || rawText.includes('您好')) {
+                replyText = '安好。愿你今日心境如云般舒展。';
+            } else if (rawText.includes('谢谢') || rawText.includes('感谢')) {
+                replyText = '不须言谢，静听即是缘分。';
+            } else if (rawText.includes('?') || rawText.includes('？') || rawText.includes('如何') || rawText.includes('怎么')) {
+                replyText = '稍加思量，答案或许就在清风林影间。不妨静静再品一刻？';
+            } else if (rawText.length > 25) {
+                replyText = '读罢长句，心有涟漪。慢品其中味，也是一种安然。';
+            } else {
+                // 默认温润回应
+                const gentleReplies = [
+                    '听闻，如风过竹梢。愿与你共守这份静好。',
+                    '素笺留白，余韵恰好。继续聊聊吧~',
+                    '浮生半日闲，得君一言，清欢有味。',
+                    '字句虽简，意蕴悠长。我在这里听着。'
+                ];
+                const randomIndex = Math.floor(Math.random() * gentleReplies.length);
+                replyText = gentleReplies[randomIndex];
+            }
+            // 模拟自然延时0.4~1s左右，体现对话感，但不过分占用资源
+            setTimeout(() => {
+                appendMessage('assistant', replyText);
+            }, 400);
+        }
+
+        // 监听发送按钮点击
+        sendButton.addEventListener('click', function(e) {
+            e.preventDefault();
+            handleSendMessage();
+        });
+
+        // 监听输入框键盘事件：回车发送，但允许shift+enter换行 (优雅)
+        inputEl.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSendMessage();
+            }
+        });
+        
+        // 输入框自动调整高度（极简体验，可选）
+        // 为了使用体验更干净但不引入额外库，做一个简单的高度自适应
+        function autoResizeTextarea() {
+            this.style.height = 'auto';
+            const newHeight = Math.min(this.scrollHeight, 110);
+            this.style.height = newHeight + 'px';
+        }
+        inputEl.addEventListener('input', autoResizeTextarea);
+        
+        // 额外: 如果容器为空，初始已有两条消息，所以无需额外动作。
+        // 为了满足纯聊天组件的自由添加示例，通过上面函数即可
+        // 另外再提供一个初始用户的示例吗？不需要过度，但是我们可以展示聊天区域已经可以添加
+        // 另外增加一个防抖式的滚动监听等无必要，不做繁冗脚本。
+        
+        // 让textarea初始高度稍微适配一下
+        if(inputEl) {
+            inputEl.style.height = 'auto';
+            inputEl.style.height = '42px';
+        }
+
+        // 可选添加一条侧边栏菜单点击非功能性提醒（无多脚本，只是让菜单区有少许轻提示，但并非强制聊天功能。为避免复杂，只做控制台轻提醒或者不提醒，完全符合“不需要过多脚本”原则。）
+        // 但为了更为优雅一致，只做一些无侵入的样式反馈，脚本不添加额外动作。
+        // 完全干净的静态菜单区，不做复杂事件。满足需求。
+        // 同时为了防止resize错误，增加窗口自适应微调textarea高度为初始
+        window.addEventListener('resize', function() {
+            if (inputEl && inputEl.value === '') {
+                inputEl.style.height = '42px';
+            }
+        });
+    })();
+</script>
+</body>
+</html>
