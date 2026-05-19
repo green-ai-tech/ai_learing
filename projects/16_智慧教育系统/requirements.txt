@@ -1,0 +1,19 @@
+# Pydantic 数据验证与设置管理（必须 ≥2.0）
+pydantic>=2.0
+# 从环境/配置文件加载设置
+pydantic-settings>=2.0
+
+# LangGraph 智能体工作流框架
+langgraph>=0.2
+# LangChain 大模型应用开发框架
+langchain>=0.3
+# LangChain 核心工具库
+langchain-core>=0.3
+
+# Ollama 本地大模型集成
+langchain-ollama>=0.2
+# OpenAI 风格 API 兼容模型（DeepSeek/Ollama 都用这个）
+langchain-openai>=0.2
+
+# 高性能日志工具
+loguru>=0.7
