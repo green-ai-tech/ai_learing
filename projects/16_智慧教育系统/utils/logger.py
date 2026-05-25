@@ -1,6 +1,7 @@
 """日志系统模块
 
 基于 Loguru 的日志配置，支持控制台彩色输出和文件轮转日志。
+提供 setup_logging() 初始化日志系统，get_logger() 获取模块级 logger 实例。
 
 Author: LogicYe
 Date: 2026-05-19
@@ -8,56 +9,56 @@ Date: 2026-05-19
 import sys
 from pathlib import Path
 from typing import Optional
-from loguru import logger      # 已经是对象（Logger类）
+from loguru import logger
 
-from utils import settings 
+from utils import settings
 
-# 配置
+
 def setup_logging(
     log_level:  Optional[str] = None,
     log_file:   Optional[str] = None,
     rotation:   Optional[str] = None,
     retention:  Optional[str] = None,
 ) -> None:
-    """
-    配置日志系统
+    """配置日志系统
+
+    初始化 Loguru 日志器，添加控制台彩色输出和文件轮转日志两个 handler。
+    所有参数均可选，未传入时从全局 settings 配置中读取默认值。
+
     Args:
-        log_level:  日志级别，默认从配置读取
-        log_file:   日志文件路径，默认从配置读取
-        rotation:   日志轮转规则，默认从配置读取
-        retention:  日志保留时间，默认从配置读取
+        log_level: 日志级别，默认从配置读取
+        log_file:  日志文件路径，默认从配置读取
+        rotation:  日志轮转规则，默认从配置读取
+        retention: 日志保留时间，默认从配置读取
     """
     # 使用配置中的默认值
-    log_level   = log_level or settings.log_level
-    log_file    = log_file or settings.log_file
-    rotation    = rotation or settings.log_rotation
-    retention   = retention or settings.log_retention
-    
+    log_level = log_level or settings.log_level
+    log_file = log_file or settings.log_file
+    rotation = rotation or settings.log_rotation
+    retention = retention or settings.log_retention
+
     # 移除默认的 handler
     logger.remove()
-    
+
     # ==================== 控制台日志 ====================
-    # 添加彩色控制台输出，格式化更易读
     logger.add(
-        sys.stderr,   # stdout, stdin
+        sys.stderr,
         format=(
             "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | "
-            "<level>{level: <8}</level> | "   # 宽度8，并且左对齐
+            "<level>{level: <8}</level> | "
             "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> | "
             "<level>{message}</level>"
         ),
         level=log_level,
         colorize=True,
-        backtrace=True,  # 显示完整的异常追踪
-        diagnose=True,   # 显示变量值
+        backtrace=True,
+        diagnose=True,
     )
-    
+
     # ==================== 文件日志 ====================
-    # 确保日志目录存在
     log_path = Path(log_file)
-    log_path.parent.mkdir(parents=True, exist_ok=True)  # 创建目录
-    
-    # 添加文件日志，支持轮转和自动清理
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+
     logger.add(
         log_file,
         format=(
@@ -67,22 +68,25 @@ def setup_logging(
             "{message}"
         ),
         level=log_level,
-        rotation=rotation,      # 文件大小达到限制时轮转
-        retention=retention,    # 保留指定时间的日志
-        compression="zip",      # 压缩旧日志
+        rotation=rotation,
+        retention=retention,
+        compression="zip",
         backtrace=True,
         diagnose=True,
-        enqueue=True,          # 异步写入，提高性能
+        enqueue=True,
     )
-    # logger.info(f"日志系统初始化完成 - 级别: {log_level}, 文件: {log_file}")
 
-# 要么全局变量，要么工厂模式
+
 def get_logger(name: str):
-    """
-    获取指定名称的 logger
+    """获取指定名称的模块级 logger
+
+    通过 bind(name=name) 创建带模块标识的 logger 实例，
+    便于在日志输出中区分不同模块的来源。
+
     Args:
-        name: logger 名称，通常使用模块的 __name__
+        name: logger 标识名称，通常传入调用模块的 __name__
+
     Returns:
-        配置好的 logger 实例
+        绑定 name 后的 loguru.Logger 实例
     """
-    return logger.bind(name=name)   # 通常是当前的模块名： __name__ 
+    return logger.bind(name=name)

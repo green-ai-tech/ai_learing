@@ -23,7 +23,6 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         case_sensitive=False,    # 大小写不敏感
         extra="ignore"           # 忽略额外的环境变量
-        
     )
     # ============ 1. 模型与代理配置 ===============
     # --- 当前生效的提供商 ---
@@ -57,10 +56,7 @@ class Settings(BaseSettings):
     log_rotation: str               = Field(default="100 MB", description="日志文件轮转大小")
     log_retention: str              = Field(default="30 days", description="日志文件保留时间")
 
-# python的编程模式：工厂模式（不使用构造器创建对象，而是使用函数创建对象）
-"""全局配置实例
-
-工厂模式创建的单例，项目所有模块通过 import 此实例获取配置。
-"""
+# 全局配置实例
+# 工厂模式：通过工厂函数/类方法创建单例对象，项目所有模块通过 import 此实例获取配置。
 settings = Settings()
 

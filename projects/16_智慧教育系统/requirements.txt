@@ -3,6 +3,10 @@ pydantic>=2.0
 # 从环境/配置文件加载设置
 pydantic-settings>=2.0
 
+# FastAPI 服务与本地开发服务器
+fastapi>=0.115
+uvicorn>=0.30
+
 # LangGraph 智能体工作流框架
 langgraph>=0.2
 # LangChain 大模型应用开发框架
