@@ -1,7 +1,9 @@
 import request from './index'
 
-export async function fetchApps(stageFilter) {
-  const response = await request.post('/apps', {}, { params: { stage_filter: stageFilter } })
+export async function fetchApps(category) {
+  const response = await request.get('/apps', {
+    params: { category },
+  })
   return response.data
 }
 

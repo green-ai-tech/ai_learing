@@ -11,9 +11,10 @@
 
       <!-- 中间导航 (居中) -->
       <nav class="hidden md:flex items-center gap-1 rounded-full bg-gray-100 p-1">
-        <button
+        <router-link
           v-for="(item, index) in navItems"
           :key="index"
+          :to="item.to"
           class="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-all"
           :class="
             activeTab === item.label
@@ -22,11 +23,9 @@
           "
           @click="activeTab = item.label"
         >
-          <router-link :to="item.to" class="hover:text-red-600">
-            <component :is="item.icon" :size="16" />
-            {{ item.label }}
-          </router-link>
-        </button>
+          <component :is="item.icon" :size="16" />
+          {{ item.label }}
+        </router-link>
       </nav>
 
       <!-- 右侧用户区 -->
@@ -44,14 +43,14 @@
 
 <script setup>
 import { ref } from 'vue';
-import { Sparkles, Bell, LayoutGrid, BookOpen, Hammer, Puzzle } from '@lucide/vue';
+import { Sparkles, Bell, LayoutGrid, BookOpen, Hammer } from '@lucide/vue';
 
 const activeTab = ref('探索');
 
 const navItems = [
   { label: '探索', icon: Sparkles, to: '/agents.view'},
   { label: '工作室', icon: LayoutGrid, to: '/workflow.view'},
-  { label: '知识库', icon: BookOpen, to: ''},
-  { label: '工具', icon: Hammer, to: ''},
+  { label: '知识库', icon: BookOpen, to: '/workflow.view'},
+  { label: '工具', icon: Hammer, to: '/workflow.view'},
 ];
 </script>

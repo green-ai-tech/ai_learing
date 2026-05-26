@@ -7,10 +7,4 @@
 
 <script setup>
 import AppHeader from './components/Header.vue';   // 组件
-import { useRouter } from 'vue-router'; // 引入路由
-// 创建 路由器 对象
-const router = useRouter();
-// 强制显示指定的路由
-router.push('/agents.view');
 </script>
-

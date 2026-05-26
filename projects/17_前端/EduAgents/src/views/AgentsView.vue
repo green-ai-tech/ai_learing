@@ -24,6 +24,12 @@
       </div>
 
       <!-- 卡片网格布局 -->
+      <div v-if="loading" class="rounded-lg border border-gray-200 bg-white px-4 py-8 text-center text-sm text-gray-500">
+        正在加载智能体...
+      </div>
+      <div v-else-if="errorMessage" class="rounded-lg border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-700">
+        {{ errorMessage }}
+      </div>
       <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         <AppCard
           v-for="app in filteredApps"
@@ -35,7 +41,9 @@
           :icon="app.icon"
           :icon-bg-class="app.iconBg"
           :tag-color-class="app.tagColor"
-          :show-action="app.showAction"
+          :show-action="app.showAction || Boolean(app.routePath)"
+          action-label="打开智能体"
+          @select="openApp(app)"
         />
       </div>
     </div>
@@ -44,6 +52,7 @@
 
 <script setup>
 import { ref, computed, onMounted, markRaw } from 'vue'
+import { useRouter } from 'vue-router'
 import {
   BarChart3,
   BookOpen,
@@ -117,6 +126,9 @@ const legacyToneMap = {
 const currentCategory = ref('所有')
 const categories = ref(['所有'])
 const apps = ref([])
+const loading = ref(false)
+const errorMessage = ref('')
+const router = useRouter()
 
 async function loadCategories() {
   try {
@@ -127,6 +139,8 @@ async function loadCategories() {
 }
 
 async function loadApps() {
+  loading.value = true
+  errorMessage.value = ''
   try {
     const data = await fetchApps()
     apps.value = data.map((app) => ({
@@ -134,9 +148,13 @@ async function loadApps() {
       icon: markRaw(iconMap[app.icon] || FileText),
       iconBg: iconToneMap[app.iconTone || legacyToneMap[app.iconBg]] || 'bg-blue-600',
       tagColor: tagToneMap[app.tagTone || legacyToneMap[app.tagColor]] || 'bg-gray-100 text-gray-600',
+      routePath: app.routePath || app.route_path || '/workflow.view',
     }))
   } catch (error) {
     console.error('获取数据失败', error)
+    errorMessage.value = error.response?.data?.detail || '智能体数据加载失败，请检查后端服务和数据库连接。'
+  } finally {
+    loading.value = false
   }
 }
 
@@ -147,6 +165,10 @@ onMounted(() => {
 
 const filteredApps = computed(() => {
   if (currentCategory.value === '所有') return apps.value
-  return apps.value.filter((app) => app.stage === currentCategory.value)
+  return apps.value.filter((app) => (app.category || app.stage) === currentCategory.value)
 })
+
+function openApp(app) {
+  router.push(app.routePath || '/workflow.view')
+}
 </script>

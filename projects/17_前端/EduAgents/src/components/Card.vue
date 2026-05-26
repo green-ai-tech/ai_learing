@@ -1,6 +1,10 @@
 <template>
   <div
+    role="button"
+    tabindex="0"
     class="group relative flex min-h-[220px] flex-col justify-between rounded-lg border border-gray-200 bg-white p-5 shadow-sm transition-all hover:-translate-y-1 hover:shadow-md"
+    @click="$emit('select')"
+    @keydown.enter="$emit('select')"
   >
     <!-- 顶部区域 -->
     <div class="mb-4">
@@ -35,14 +39,19 @@
 
     <!-- 底部操作区 (可选，参考截图中的“使用模板”按钮) -->
     <div v-if="showAction" class="mt-auto pt-4">
-      <button class="w-full rounded-lg bg-indigo-600 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700">
-        + 使用模板
+      <button
+        class="w-full rounded-lg bg-indigo-600 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700"
+        @click.stop="$emit('select')"
+      >
+        {{ actionLabel }}
       </button>
     </div>
   </div>
 </template>
 
 <script setup>
+defineEmits(['select'])
+
 defineProps({
   title: { type: String, required: true },
   description: { type: String, required: true },
@@ -52,5 +61,6 @@ defineProps({
   iconBgClass: { type: String, default: 'bg-blue-500' },
   tagColorClass: { type: String, default: 'bg-gray-100 text-gray-600' },
   showAction: { type: Boolean, default: false },
+  actionLabel: { type: String, default: '打开智能体' },
 })
 </script>

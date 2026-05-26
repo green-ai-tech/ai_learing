@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Optional
 from loguru import logger
 
-from utils import settings
+from utils.settings import settings
 
 
 def setup_logging(
